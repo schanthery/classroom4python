@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>classroom4python</title>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: system-ui, Arial, sans-serif;
+    background: #1e1e1e; color: #f1f1f1;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 8px 14px; background: #252526; border-bottom: 1px solid #333;
+  }
+  header h1 { font-size: 18px; margin: 0 12px 0 0; }
+  select, button {
+    padding: 8px 14px; border-radius: 4px; border: none; font-size: 14px;
+    font-weight: bold; cursor: pointer;
+  }
+  select { background: #3c3c3c; color: #fff; }
+  #runBtn  { background: #4CAF50; color: #fff; }
+  #runBtn:hover { background: #45a049; }
+  #runAllBtn { background: #2980b9; color: #fff; }
+  #runAllBtn:hover { background: #2471a3; }
+  #stopBtn { background: #c0392b; color: #fff; }
+  #stopBtn:hover { background: #a93226; }
+  #status { margin-left: auto; font-size: 13px; color: #aaa; }
+  #status .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+                 background: #e67e22; margin-right: 6px; }
+  #status.on .dot { background: #2ecc71; }
+
+  main { flex: 1; min-height: 0; display: flex; gap: 10px; padding: 10px; }
+  .pane { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .CodeMirror { flex: 1; height: 100%; border-radius: 4px; font-size: 14px; }
+  #editorWrap { flex: 1; min-height: 0; }
+
+  #screen {
+    flex: 1; min-height: 0; background: #000; border-radius: 4px; overflow: hidden;
+    position: relative;
+  }
+  #screen iframe { width: 100%; height: 100%; border: 0; background: #000; }
+  #screen .hint { position: absolute; inset: 0; display: flex; align-items: center;
+                  justify-content: center; color: #666; font-style: italic; pointer-events: none; }
+  #console {
+    display: flex; flex-direction: column; height: 160px; min-height: 70px;
+    resize: vertical; overflow: hidden; background: #111; border-radius: 4px;
+  }
+  #console-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 3px 8px; background: #252526; font-size: 12px; color: #aaa;
+  }
+  #clearBtn { padding: 2px 10px; font-size: 12px; background: #3c3c3c; color: #fff; }
+  #clearBtn:hover { background: #505050; }
+  #log {
+    flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 6px 10px;
+    font: 12px/1.4 monospace; white-space: pre-wrap;
+  }
+  #log .err  { color: #ff6b6b; }
+  #log .info { color: #7f8c8d; }
+  #log .prompt { color: #9cdcfe; }
+  #consoleInputRow {
+    display: none; align-items: flex-end; gap: 6px; padding: 6px;
+    border-top: 1px solid #333;
+  }
+  body.mode-console #consoleInputRow { display: flex; }
+  #consoleInput {
+    flex: 1; min-width: 0; min-height: 34px; max-height: 140px; resize: vertical;
+    padding: 7px 9px; border: 1px solid #444; border-radius: 4px;
+    background: #1e1e1e; color: #f1f1f1; font: 12px/1.4 monospace;
+  }
+  #consoleInput:disabled { opacity: .55; }
+  #consoleSubmit { padding: 7px 10px; background: #3c3c3c; color: #fff; }
+  #consoleSubmit:disabled { opacity: .55; cursor: default; }
+  #consoleStatus { margin-left: 8px; color: #888; }
+
+  #users { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-left: auto; }
+  #status { margin-left: 0; }
+  .chip { font-size: 12px; font-weight: bold; color: #fff; padding: 3px 9px; border-radius: 10px; }
+  #nameInput {
+    width: 130px; padding: 7px 10px; border-radius: 4px; border: 1px solid #444;
+    background: #1e1e1e; color: #fff; font-size: 14px;
+  }
+  .CodeMirror-lines { padding-top: 18px; }
+  .rc {
+    position: relative; display: inline-block; width: 0; height: 1.3em;
+    vertical-align: text-bottom; border-left: 2px solid #888; pointer-events: none;
+  }
+  .rc-label {
+    position: absolute; top: -15px; left: -2px; z-index: 10; white-space: nowrap;
+    font: bold 11px/1 system-ui, Arial, sans-serif; color: #fff;
+    padding: 2px 5px; border-radius: 3px 3px 3px 0; opacity: .9;
+  }
+
+  #roomNew, #roomJoin, #roomCopy { background: #2d6cdf; color: #fff; }
+  #roomNew:hover, #roomJoin:hover, #roomCopy:hover { background: #2559b8; }
+  #roomInput {
+    width: 150px; padding: 7px 10px; border-radius: 4px; border: 1px solid #444;
+    background: #1e1e1e; color: #fff; font-size: 14px;
+  }
+  .roomJoinBox { display: flex; gap: 4px; }
+
+
+  body.mode-console #screen { display: none; }
+  body.mode-console #console { flex: 1; height: auto; resize: none; }
+  .hiddenFrame { position: fixed; left: 0; top: 0; width: 1px; height: 1px; border: 0; opacity: 0; pointer-events: none; }
+
+  #filesWrap { position: relative; }
+  #filesBtn { background: #8e44ad; color: #fff; }
+  #filesBtn:hover { background: #7d3c98; }
+  #filesPanel {
+    display: none; position: absolute; top: 100%; left: 0; margin-top: 6px; z-index: 60;
+    width: 340px; padding: 12px; background: #2b2b2e; border: 1px solid #444;
+    border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.5);
+  }
+  #filesPanel.open { display: block; }
+  #filesPanel.drag { outline: 2px dashed #8e44ad; }
+  #filesPick { width: 100%; padding: 8px 10px; font-size: 13px; background: #8e44ad; color: #fff; }
+  #filesInfo { margin: 8px 0 4px; font-size: 12px; color: #aaa; }
+  #filesMsg { font-size: 12px; min-height: 0; white-space: pre-line; margin-bottom: 4px; }
+  #filesMsg.err { color: #ff6b6b; } #filesMsg.ok { color: #7fd17f; }
+  #filesList { max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 4px; }
+  .frow { display: flex; align-items: center; gap: 8px; padding: 4px; background: #333; border-radius: 4px; }
+  .frow img { width: 36px; height: 36px; object-fit: contain; background: #111; border-radius: 3px; flex: none; }
+  .frow .fname { flex: 1; min-width: 0; font: 12px monospace; color: #f1f1f1; cursor: pointer; overflow: hidden;
+                 text-overflow: ellipsis; white-space: nowrap; }
+  .frow .fname:hover { text-decoration: underline; }
+  .frow .fmeta { font-size: 11px; color: #999; white-space: nowrap; text-align: right; }
+  .frow button { padding: 2px 8px; font-size: 12px; background: #555; color: #fff; }
+  .frow button:hover { background: #c0392b; }
+  .fplay { width: 36px; height: 36px; flex: none; font-size: 14px; background: #2d6cdf; color: #fff; border-radius: 3px; }
+  .fplay:hover { background: #2559b8; }
+  #filesHelp { margin-top: 8px; font-size: 11px; color: #888; line-height: 1.4; }
+  #filesHelp code { color: #bbb; }
+
+  #lockWrap { position: relative; }
+  #lockBtn { background: #16a085; color: #fff; }
+  #lockBtn:hover { background: #138d75; }
+  body.room-locked #lockBtn { background: #c0392b; }
+  #lockPanel {
+    display: none; position: absolute; top: 100%; left: 0; margin-top: 6px; z-index: 70;
+    width: 320px; padding: 12px; background: #2b2b2e; border: 1px solid #444;
+    border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.5);
+  }
+  #lockPanel.open { display: block; }
+  #lockPanel button { width: 100%; margin-top: 6px; padding: 8px 10px; font-size: 13px; background: #3c3c3c; color: #fff; }
+  #lockPanel button:hover { background: #505050; }
+  #lockToggle { background: #16a085 !important; }
+  body.room-locked #lockToggle { background: #c0392b !important; }
+  #lockState { font-size: 13px; color: #ddd; line-height: 1.4; }
+  #lockMsg { font-size: 12px; min-height: 0; margin-top: 6px; white-space: pre-line; }
+  #lockMsg.err { color: #ff6b6b; } #lockMsg.ok { color: #7fd17f; }
+  #lockPanel h4 { margin: 12px 0 4px; font-size: 12px; color: #aaa; text-transform: uppercase; letter-spacing: .05em; }
+  #demoList { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow: auto; }
+  #demoList button { margin-top: 0; text-align: left; font-weight: normal; }
+  #demoList button.current { outline: 2px solid #16a085; }
+  #demoList .empty { font-size: 12px; color: #888; font-style: italic; }
+  #lockBadge { display: none; background: #c0392b; color: #fff; font-size: 12px; font-weight: bold; padding: 4px 9px; border-radius: 10px; }
+  body.room-locked .frow button:not(.fplay) { display: none; }
+
+  /* ---- barre du haut : une seule ligne sur ordinateur, compacte sur téléphone ---- */
+  header { flex-wrap: nowrap; gap: 6px; padding: 6px 10px; }
+  header h1 { font-size: 15px; margin: 0 6px 0 0; white-space: nowrap; }
+  header select, header button, header input { padding: 6px 10px; font-size: 13px; white-space: nowrap; flex: none; }
+  header #nameInput { width: 110px; }
+  #statusText { display: none; }
+  #status { cursor: help; }
+  #lockBadge { display: none !important; }
+  #lockBtn { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+  #authorBtn { background: #d35400; color: #fff; }
+  #authorBtn:hover { background: #ba4a00; }
+  #authorBtn.on { background: #f39c12; box-shadow: inset 0 0 0 2px #fff; }
+  .chip { width: 24px; height: 24px; padding: 0; border-radius: 50%; display: inline-flex;
+          align-items: center; justify-content: center; font-size: 12px; }
+  #users { flex-wrap: nowrap; gap: 4px; }
+  #roomTools { display: flex; flex-direction: column; gap: 6px; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid #444; }
+  #roomTools button { margin-top: 0 !important; }
+  #roomTools .roomJoinBox { display: flex; gap: 4px; }
+  #roomTools #roomInput { flex: 1; min-width: 0; width: auto; }
+  #roomTools #roomJoin { width: auto !important; }
+  #nameBox { display: none; }
+  #nameBox .lab { font-size: 12px; color: #aaa; margin-bottom: 4px; }
+  #nameBox input { width: 100% !important; }
+  #filesPanel .moved { width: 100%; margin-top: 6px; box-sizing: border-box; }
+  .fico { width: 36px; height: 36px; flex: none; display: flex; align-items: center; justify-content: center;
+          background: #111; border-radius: 3px; font-size: 20px; }
+  #toast { display: none; position: fixed; top: 54px; left: 50%; transform: translateX(-50%); z-index: 300;
+           background: #333; color: #fff; border: 1px solid #666; border-radius: 6px; padding: 8px 14px;
+           font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.5); max-width: 90vw; }
+  @media (max-width: 1100px) { header h1 { display: none; } }
+  @media (max-width: 1000px) {
+    header .lbl { display: none; }
+    header #nameInput { width: 90px; }
+    header select, header button { padding: 6px 9px; }
+  }
+  @media (max-width: 700px) {
+    header { gap: 4px; padding: 4px 6px; }
+    header select { max-width: 92px; }
+    #users, header > #nameInput { display: none; }
+    #nameBox.ready { display: block; }
+    #lockPanel, #filesPanel { position: fixed; left: 8px; right: 8px; top: 46px; width: auto;
+                              max-height: calc(100vh - 60px); overflow: auto; }
+    main { padding: 6px; gap: 6px; }
+    .pane { gap: 6px; }
+    #console { height: 110px; min-height: 60px; }
+  }
+
+  @media (max-width: 800px) { main { flex-direction: column; } }
+  footer {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 4px 12px; background: #252526; border-top: 1px solid #333;
+    color: #aaa; font-size: 11px; text-align: center;
+  }
+  footer a { color: #9cdcfe; }
+  footer img { width: 88px; height: 31px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>classroom4python</h1>
+  <select id="mode" title="Mode d'exécution (partagé avec les autres participants)">
+    <option value="pyxel">Pyxel</option>
+    <option value="turtle">Turtle</option>
+    <option value="pygame">Pygame</option>
+    <option value="tkinter">Tkinter</option>
+    <option value="console">Console</option>
+  </select>
+  <button id="runBtn"><span class="ic">▶</span><span class="lbl"> Lancer</span></button>
+  <button id="runAllBtn" title="Lancer le code pour tous les participants"><span class="ic">▶▶</span><span class="lbl"> Tous</span></button>
+  <button id="stopBtn"><span class="ic">■</span><span class="lbl"> Arrêter</span></button>
+  <button id="authorBtn" title="Colorer le code selon son auteur (cliquer à nouveau pour revenir à la normale)"><span class="ic">🎨</span><span class="lbl"> Auteurs</span></button>
+  <div id="lockWrap">
+    <button id="lockBtn" title="Verrouillage de la salle (démonstration)"><span class="ic">🏠</span><span class="lbl"> Salle</span></button>
+    <div id="lockPanel">
+      <div id="roomTools">
+        <button id="roomNew" title="Créer une salle avec un nom aléatoire">🎲 Nouvelle salle</button>
+        <span class="roomJoinBox">
+          <input id="roomInput" maxlength="32" placeholder="nom de la salle" title="Tapez le nom d'une salle puis Entrée">
+          <button id="roomJoin">→ Rejoindre</button>
+        </span>
+        <button id="roomCopy" title="Copier le lien pour inviter quelqu'un dans cette salle">🔗 Copier le lien</button>
+        <div id="nameBox"><div class="lab">Votre pseudo</div></div>
+      </div>
+      <div id="lockState"></div>
+      <div id="lockMsg"></div>
+      <button id="lockToggle"></button>
+      <button id="lockFork" title="Crée une nouvelle salle modifiable avec le même code">📋 Copier le code dans une nouvelle salle</button>
+      <h4>Salles de démonstration</h4>
+      <div id="demoList"></div>
+    </div>
+  </div>
+  <div id="filesWrap">
+    <button id="filesBtn" title="Images partagées avec tous les participants de la salle"><span class="ic">📁</span><span class="lbl"> Fichiers</span></button>
+    <div id="filesPanel">
+      <button id="filesPick">⬆ Importer des images, sons ou .pyxres…</button>
+      <input id="filesInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg,.pyxres" multiple hidden>
+      <div id="filesInfo"></div>
+      <div id="filesMsg"></div>
+      <div id="filesList"></div>
+      <div id="filesHelp">Images (png, jpg, gif, webp, bmp) et sons (mp3, wav, ogg) : glissez-les ici, ils sont partagés avec toute la salle.<br>
+        Images : <code>pygame.image.load("nom.png")</code> · <code>PhotoImage(file="nom.png")</code><br>
+        Sons : <code>pygame.mixer.Sound("nom.mp3").play()</code> · <code>import sound; sound.play("nom.mp3")</code><br>
+        Pyxel : <code>pyxel.load("nom.pyxres")</code><br>
+        Cliquez sur un nom pour le copier.</div>
+    </div>
+  </div>
+  <div id="users"></div>
+  <input id="nameInput" maxlength="20" placeholder="Votre nom" title="Votre nom (visible par les autres)">
+  <span id="lockBadge" title="Cette salle est en lecture seule">🔒 Lecture seule</span>
+  <span id="status"><span class="dot"></span><span id="statusText">Connexion…</span></span>
+</header>
+
+<main>
+  <div class="pane">
+    <div id="editorWrap"><textarea id="editor"></textarea></div>
+  </div>
+  <div class="pane">
+    <div id="screen"><div class="hint" id="hint">Cliquez sur « Lancer » (Ctrl+Entrée)</div></div>
+    <div id="console">
+      <div id="console-bar"><span><span id="consoleTitle">Console</span><span id="consoleStatus"></span></span><button id="clearBtn">Effacer</button></div>
+      <pre id="log"></pre>
+      <form id="consoleInputRow">
+        <textarea id="consoleInput" rows="1" aria-label="Commande Python" placeholder="Commande Python — Entrée pour exécuter, Maj+Entrée pour une nouvelle ligne" disabled></textarea>
+        <button id="consoleSubmit" type="submit" disabled>Exécuter</button>
+      </form>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span>Sauf mention contraire, le contenu de ce site est sous licence</span>
+  <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener noreferrer">
+    <img src="https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png" alt="Licence Creative Commons CC BY-NC-SA 4.0">
+  </a>
+  <a href="LICENSE" target="_blank" rel="noopener noreferrer">CC BY-NC-SA 4.0</a>.
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+
+<script type="module">
+  // Yjs + y-websocket depuis esm.sh (les fichiers UMD de cdnjs n'existent pas)
+  import * as Y from 'https://esm.sh/yjs@13.6.20';
+  import { WebsocketProvider } from 'https://esm.sh/y-websocket@2.0.4?deps=yjs@13.6.20';
+
+  const PYXEL_TEMPLATE = `import pyxel
+
+class App:
+    def __init__(self):
+        pyxel.init(160, 120, title="classroom4python")
+        self.x = 0
+        pyxel.run(self.update, self.draw)
+
+    def update(self):
+        self.x = (self.x + 1) % pyxel.width
+
+    def draw(self):
+        pyxel.cls(1)
+        pyxel.text(35, 55, "Hello classroom4python!", 7)
+        pyxel.circ(self.x, 90, 6, 10)
+
+App()
+`;
+
+  const TURTLE_TEMPLATE = `import turtle
+
+t = turtle.Turtle()
+t.speed(0)
+for i in range(36):
+    t.forward(100)
+    t.left(170)
+`;
+
+  const $ = id => document.getElementById(id);
+  const logEl = $('log'), screenEl = $('screen'), modeSel = $('mode');
+  const consoleInput = $('consoleInput'), consoleSubmit = $('consoleSubmit');
+  const consoleStatus = $('consoleStatus'), consoleTitle = $('consoleTitle');
+  let consoleReady = false;
+  function setConsoleReady(ready) {
+    consoleReady = ready;
+    const enabled = ready && modeSel.value === 'console';
+    consoleInput.disabled = !enabled;
+    consoleSubmit.disabled = !enabled;
+    if (enabled) consoleInput.focus();
+  }
+
+  /* ---------- Éditeur ---------- */
+  const editor = CodeMirror.fromTextArea($('editor'), {
+    lineNumbers: true, mode: 'python', theme: 'dracula',
+    indentUnit: 4, indentWithTabs: false,
+    extraKeys: {
+      Tab: cm => cm.somethingSelected() ? cm.indentSelection('add') : cm.replaceSelection('    '),
+      'Ctrl-Enter': () => run()
+    }
+  });
+
+  /* ---------- Collaboration ---------- */
+  const room = new URLSearchParams(location.search).get('room') || 'main';
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const basePath = location.pathname.replace(/[^/]*$/, '');          // ex: /classroom4python/
+  const wsUrl = `${proto}//${location.host}${basePath}ws`;            // -> /classroom4python/ws/<room>
+
+  const ydoc = new Y.Doc();
+  const provider = new WebsocketProvider(wsUrl, room, ydoc);
+  const yText = ydoc.getText('code');
+  const yMeta = ydoc.getMap('meta');
+
+  // PYXRES_ROOM_PATCH_V1
+  // Ressource partagée PAR ROOM, jamais dans localStorage.
+  // data est une chaîne base64 pour rester transportable par Yjs.
+  const yResources = ydoc.getMap('resources');
+  const LOCAL = Symbol('local');
+  let applyingRemote = false;
+  let lastRunSignal = 0;
+
+  // Éditeur local -> Yjs
+  editor.on('change', (cm, ch) => {
+    if (applyingRemote) return;
+    const idx = cm.indexFromPos(ch.from);
+    const removedLen = ch.removed.join('\n').length;
+    const inserted = ch.text.join('\n');
+    ydoc.transact(() => {
+      if (removedLen) yText.delete(idx, removedLen);
+      if (inserted) yText.insert(idx, inserted, { author: { name: me.name, color: me.color } });
+    }, LOCAL);
+  });
+
+  // Yjs -> éditeur local
+  yText.observe((event, tr) => {
+    if (tr.origin === LOCAL) return;
+    applyingRemote = true;
+    editor.operation(() => {
+      let idx = 0;
+      for (const d of event.delta) {
+        if (d.retain) idx += d.retain;
+        else if (d.insert) {
+          editor.replaceRange(d.insert, editor.posFromIndex(idx));
+          idx += d.insert.length;
+        } else if (d.delete) {
+          editor.replaceRange('', editor.posFromIndex(idx), editor.posFromIndex(idx + d.delete));
+        }
+      }
+    });
+    applyingRemote = false;
+  });
+
+  // Mode (Pyxel / Turtle) partagé
+  modeSel.addEventListener('change', () => { if (!roomLocked) yMeta.set('mode', modeSel.value); });
+  yMeta.observe(() => {
+    const m = yMeta.get('mode');
+    if (m && modeSel.value !== m) modeSel.value = m;
+    applyModeLayout();
+
+    // Signal « Lancer pour tous » : ignoré tant que la synchronisation initiale n'est pas finie,
+    // sinon un ancien signal relancerait le code à chaque arrivée dans la salle.
+    const sig = yMeta.get('runSignal');
+    if (provider.synced && typeof sig === 'number' && sig > lastRunSignal) {
+      lastRunSignal = sig;
+      setTimeout(run, 50);
+    }
+  });
+
+  // Premier arrivant : on insère le gabarit
+  provider.on('sync', synced => {
+    if (synced && yText.length === 0) {
+      let init = PYXEL_TEMPLATE, forkMode = null;
+      try {
+        const fk = JSON.parse(sessionStorage.getItem('pt_fork') || 'null');
+        if (fk && typeof fk.code === 'string') { init = fk.code; forkMode = fk.mode; }
+        sessionStorage.removeItem('pt_fork');
+      } catch (e) {}
+      yText.insert(0, init);
+      editor.setValue(init);
+      if (forkMode) { yMeta.set('mode', forkMode); modeSel.value = forkMode; }
+    } else if (synced && editor.getValue() === '') {
+      editor.setValue(yText.toString());
+    }
+    if (synced) lastRunSignal = yMeta.get('runSignal') || 0;
+    if (synced && yMeta.get('mode')) modeSel.value = yMeta.get('mode');
+    applyModeLayout();
+  });
+
+  // Identité locale (nom + couleur, mémorisés dans le navigateur)
+  const COLORS = ['#e74c3c', '#e67e22', '#d4ac0d', '#2ecc71', '#1abc9c', '#3498db', '#9b59b6', '#e84393',
+                  '#00b894', '#fd79a8', '#00bcd4', '#a0522d', '#7f8fa6', '#ff7675', '#8d9440', '#6c5ce7'];
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+  const me = {
+    name: store.get('pt_name') || ('Anonyme ' + (10 + Math.floor(Math.random() * 90))),
+    color: store.get('pt_color') || COLORS[Math.floor(Math.random() * COLORS.length)]
+  };
+  store.set('pt_name', me.name);
+  store.set('pt_color', me.color);
+  me.since = Date.now();                 // ordre d'arrivée : en cas de conflit, le dernier arrivé cède
+
+  const awareness = provider.awareness;
+  awareness.setLocalStateField('user', { name: me.name, color: me.color, since: me.since });
+
+  const nameInput = $('nameInput');
+  nameInput.value = me.name;
+  nameInput.addEventListener('change', () => {
+    const wanted = nameInput.value.trim().slice(0, 20);
+    if (!wanted) { nameInput.value = me.name; return; }
+    if (nameKey(wanted) !== nameKey(me.name) && othersWithName(wanted) > 0) {
+      nameInput.value = me.name;
+      uiToast('Le pseudo « ' + wanted + ' » est déjà utilisé : choisissez-en un autre.');
+      return;
+    }
+    me.name = wanted;
+    nameInput.value = me.name;
+    store.set('pt_name', me.name);
+    publishUser();
+  });
+
+  const safeColor = c => (/^#[0-9a-f]{6}$/i.test(c) ? c : '#888888');
+
+  // Publication de mon curseur / ma sélection (positions relatives Yjs)
+  function publishCursor() {
+    try {
+      const a = editor.indexFromPos(editor.getCursor('anchor'));
+      const h = editor.indexFromPos(editor.getCursor('head'));
+      awareness.setLocalStateField('cursor', {
+        anchor: Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(yText, a)),
+        head:   Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(yText, h))
+      });
+    } catch (e) { /* position transitoire invalide : ignorée */ }
+  }
+  editor.on('cursorActivity', publishCursor);
+
+  // Affichage des curseurs des autres
+  let marks = [];
+  let redrawQueued = false;
+  function scheduleRedraw() {
+    if (redrawQueued) return;
+    redrawQueued = true;
+    requestAnimationFrame(() => { redrawQueued = false; drawRemoteCursors(); });
+  }
+  function resolvePos(json) {
+    try {
+      const abs = Y.createAbsolutePositionFromRelativePosition(
+        Y.createRelativePositionFromJSON(json), ydoc);
+      return abs && abs.type === yText ? abs.index : null;
+    } catch (e) { return null; }
+  }
+  function drawRemoteCursors() {
+    marks.forEach(m => m.clear());
+    marks = [];
+    awareness.getStates().forEach((st, id) => {
+      if (id === awareness.clientID || !st.user || !st.cursor) return;
+      const a = resolvePos(st.cursor.anchor);
+      const h = resolvePos(st.cursor.head);
+      if (h === null) return;
+      const color = safeColor(st.user.color);
+      if (a !== null && a !== h) {
+        const from = Math.min(a, h), to = Math.max(a, h);
+        marks.push(editor.markText(editor.posFromIndex(from), editor.posFromIndex(to),
+                                   { css: 'background-color:' + color + '44' }));
+      }
+      const el = document.createElement('span');
+      el.className = 'rc';
+      el.style.borderLeftColor = color;
+      const label = document.createElement('span');
+      label.className = 'rc-label';
+      label.style.background = color;
+      label.textContent = String(st.user.name || '?').slice(0, 20);
+      el.appendChild(label);
+      marks.push(editor.setBookmark(editor.posFromIndex(h), { widget: el, insertLeft: true }));
+    });
+  }
+  yText.observe(scheduleRedraw);
+
+  // ---------- Salles : créer / rejoindre / copier le lien ----------
+  const cleanRoom = n => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32);
+
+  function goToRoom(name) {
+    const r = cleanRoom(name || '');
+    if (!r || r === room) return;
+    location.search = '?room=' + encodeURIComponent(r);
+  }
+
+  $('roomNew').addEventListener('click', () => {
+    const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+    const bytes = crypto.getRandomValues(new Uint8Array(6));
+    let code = '';
+    bytes.forEach(b => { code += chars[b % chars.length]; });
+    goToRoom('salle-' + code);
+  });
+
+  const roomInput = $('roomInput');
+  $('roomJoin').addEventListener('click', () => {
+    if (!cleanRoom(roomInput.value)) { roomInput.focus(); return; }
+    goToRoom(roomInput.value);
+  });
+  roomInput.addEventListener('keydown', e => { if (e.key === 'Enter') $('roomJoin').click(); });
+
+  $('roomCopy').addEventListener('click', async () => {
+    const url = location.origin + location.pathname + '?room=' + encodeURIComponent(room);
+    const btn = $('roomCopy');
+    const label = btn.textContent;
+    try { await navigator.clipboard.writeText(url); btn.textContent = '✓ Lien copié !'; }
+    catch (e) { window.prompt('Copiez ce lien :', url); }
+    setTimeout(() => { btn.textContent = label; }, 2000);
+  });
+
+  // ---------- Ressources Pyxel (.pyxres) : elles se gèrent dans « 📁 Fichiers » ----------
+  function sanitizePyxresName(name) {
+    let n = String(name || 'room.pyxres').split(/[/\\]/).pop();
+    n = n.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+    if (!n.toLowerCase().endsWith('.pyxres')) n += '.pyxres';
+    return n || 'room.pyxres';
+  }
+
+  // Anciennes salles : la ressource enregistrée par l'ancien bouton reste utilisable
+  function legacyPyxres() {
+    const name = yResources.get('name'), b64 = yResources.get('data');
+    if (!name || !b64) return null;
+    try {
+      return { name: sanitizePyxresName(name), data: Uint8Array.from(atob(b64), c => c.charCodeAt(0)),
+               t: Number(yResources.get('updatedAt')) || 0 };
+    } catch (e) { return null; }
+  }
+
+  // Les .pyxres de la salle, du plus ancien au plus récent
+  function pyxresList() {
+    const list = [];
+    yFiles.forEach((v, k) => { if (/\.pyxres$/i.test(k)) list.push({ name: k, data: v.data, t: v.t || 0 }); });
+    const lg = legacyPyxres();
+    if (lg && !list.some(r => r.name === lg.name)) list.push(lg);
+    list.sort((a, b) => a.t - b.t);
+    return list;
+  }
+
+  // ---------- Fichiers partagés (images) ----------
+  const yFiles = ydoc.getMap('files');
+  const FILE_MAX = 300 * 1024;          // poids maximal d'une image
+  const AUDIO_MAX = 1024 * 1024;        // poids maximal d'un son
+  const PYXRES_MAX = 2 * 1024 * 1024;   // poids maximal d'un fichier .pyxres (Pyxel)
+  const TOTAL_MAX = 6 * 1024 * 1024;    // poids total des fichiers d'une salle
+  const COUNT_MAX = 30;                 // nombre maximal de fichiers par salle
+  const filesBtn = $('filesBtn'), filesPanel = $('filesPanel'), filesList = $('filesList');
+  const filesInfo = $('filesInfo'), filesMsg = $('filesMsg'), filesInput = $('filesInput');
+  let fileUrls = [];
+
+  function cleanFileName(n) {
+    n = String(n).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_')
+         .replace(/[^A-Za-z0-9._-]/g, '').replace(/^\.+/, '');
+    if (n.length > 40) {
+      const dot = n.lastIndexOf('.');
+      const ext = dot > 0 ? n.slice(dot) : '';
+      n = n.slice(0, 40 - ext.length) + ext;
+    }
+    return n;
+  }
+  function sniffImage(b) {
+    if (b.length < 12) return null;
+    if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return 'image/png';
+    if (b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'image/jpeg';
+    if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif';
+    if (b[0] === 0x42 && b[1] === 0x4D) return 'image/bmp';
+    if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+        b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+    return null;
+  }
+  function fmtSize(n) { return n < 1024 ? n + ' o' : (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' Ko'; }
+  function filesMessage(text, cls) { filesMsg.textContent = text || ''; filesMsg.className = cls || ''; }
+
+  function sniffAudio(b) {
+    if (b.length < 12) return null;
+    if (b[0] === 0x49 && b[1] === 0x44 && b[2] === 0x33) return 'audio/mpeg';                       // ID3
+    if (b[0] === 0xFF && (b[1] & 0xE0) === 0xE0) return 'audio/mpeg';                               // trame MP3
+    if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+        b[8] === 0x57 && b[9] === 0x41 && b[10] === 0x56 && b[11] === 0x45) return 'audio/wav';     // RIFF....WAVE
+    if (b[0] === 0x4F && b[1] === 0x67 && b[2] === 0x67 && b[3] === 0x53) return 'audio/ogg';       // OggS
+    return null;
+  }
+  function fmtDur(sec) { sec = Math.round(sec); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); }
+  const IMG_EXT = /\.(png|jpe?g|gif|webp|bmp)$/i, SND_EXT = /\.(mp3|wav|ogg)$/i;
+  const audioDur = new Map();
+
+  function sniffZip(b) {
+    return (b.length > 12 && b[0] === 0x50 && b[1] === 0x4B && (b[2] === 3 || b[2] === 5)) ? 'application/x-pyxres' : null;
+  }
+
+  async function importFiles(list) {
+    if (typeof roomLocked !== 'undefined' && roomLocked) { filesMessage('Salle verrouillée : import impossible.', 'err'); return; }
+    const errs = [];
+    let added = 0;
+    for (const f of Array.from(list)) {
+      const name = cleanFileName(f.name);
+      const isSnd = SND_EXT.test(name), isRes = /\.pyxres$/i.test(name);
+      if (!isSnd && !isRes && !IMG_EXT.test(name)) { errs.push(f.name + ' : format non accepté (images : png, jpg, gif, webp, bmp — sons : mp3, wav, ogg — Pyxel : pyxres)'); continue; }
+      const max = isSnd ? AUDIO_MAX : (isRes ? PYXRES_MAX : FILE_MAX);
+      const what = isSnd ? 'un son' : (isRes ? 'un fichier .pyxres' : 'une image');
+      if (f.size > max) { errs.push(f.name + ' : trop lourd (' + fmtSize(f.size) + ', maximum ' + fmtSize(max) + ' pour ' + what + ')'); continue; }
+      const buf = new Uint8Array(await f.arrayBuffer());
+      const type = isSnd ? sniffAudio(buf) : (isRes ? sniffZip(buf) : sniffImage(buf));
+      if (!type) { errs.push(f.name + " : ce n'est pas " + (isSnd ? 'un son valide' : (isRes ? 'un fichier .pyxres valide' : 'une image valide'))); continue; }
+      let total = 0, count = 0;
+      yFiles.forEach((v, k) => { if (k !== name) { total += v.size; count++; } });
+      if (count + 1 > COUNT_MAX) { errs.push(f.name + ' : la salle contient déjà ' + COUNT_MAX + ' fichiers'); continue; }
+      if (total + buf.length > TOTAL_MAX) { errs.push(f.name + ' : espace de la salle insuffisant (maximum ' + fmtSize(TOTAL_MAX) + ')'); continue; }
+      yFiles.set(name, { data: buf, type: type, size: buf.length, by: me.name, t: Date.now() });
+      added++;
+    }
+    if (errs.length) filesMessage((added ? added + ' fichier(s) ajouté(s).\n' : '') + errs.join('\n'), 'err');
+    else filesMessage(added + ' fichier(s) ajouté(s).', 'ok');
+  }
+
+  function renderFiles() {
+    fileUrls.forEach(u => URL.revokeObjectURL(u));
+    fileUrls = [];
+    filesList.textContent = '';
+    const names = Array.from(yFiles.keys()).sort();
+    let total = 0;
+    names.forEach(name => {
+      const f = yFiles.get(name);
+      total += f.size;
+      const isAudio = /^audio\//.test(f.type);
+      const row = document.createElement('div');
+      row.className = 'frow';
+      const nm = document.createElement('span');
+      nm.className = 'fname';
+      nm.textContent = name;
+      nm.title = 'Cliquer pour copier "' + name + '" — ajouté par ' + (f.by || '?');
+      nm.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(name); filesMessage('« ' + name + ' » copié.', 'ok'); }
+        catch (e) { window.prompt('Copiez le nom du fichier :', name); }
+      });
+      const meta = document.createElement('span');
+      meta.className = 'fmeta';
+      meta.textContent = fmtSize(f.size);
+      if (isAudio) {
+        const play = document.createElement('button');
+        play.className = 'fplay';
+        play.textContent = '▶';
+        play.title = 'Écouter';
+        let h = null;
+        play.addEventListener('click', () => {
+          if (h !== null && window.ptkAudio.busy(h)) { window.ptkAudio.stop(h); return; }
+          h = window.ptkAudio.play(name, 0, 1, () => { play.textContent = '▶'; h = null; });
+          if (h >= 0) play.textContent = '■';
+        });
+        row.appendChild(play);
+        const au = new Audio();
+        au.preload = 'metadata';
+        au.src = audioUrl(name);
+        au.addEventListener('loadedmetadata', () => {
+          if (isFinite(au.duration)) { audioDur.set(name, au.duration); meta.textContent = fmtSize(f.size) + ' · ' + fmtDur(au.duration); }
+        });
+      } else if (f.type === 'application/x-pyxres') {
+        const ic = document.createElement('span');
+        ic.className = 'fico';
+        ic.textContent = '🎮';
+        row.appendChild(ic);
+      } else {
+        const img = document.createElement('img');
+        const url = URL.createObjectURL(new Blob([f.data], { type: f.type }));
+        fileUrls.push(url);
+        img.src = url;
+        row.appendChild(img);
+      }
+      const del = document.createElement('button');
+      del.textContent = '✕';
+      del.title = 'Supprimer pour tous les participants';
+      del.addEventListener('click', () => {
+        if (roomLocked) return;
+        if (window.confirm('Supprimer « ' + name + ' » pour tous les participants ?')) yFiles.delete(name);
+      });
+      row.appendChild(nm); row.appendChild(meta); row.appendChild(del);
+      filesList.appendChild(row);
+    });
+    filesInfo.textContent = names.length
+      ? names.length + ' / ' + COUNT_MAX + ' fichiers · ' + fmtSize(total) + ' / ' + fmtSize(TOTAL_MAX) + ' (max ' + fmtSize(FILE_MAX) + ' par image, ' + fmtSize(AUDIO_MAX) + ' par son)'
+      : 'Aucun fichier. Maximum ' + fmtSize(FILE_MAX) + ' par image, ' + fmtSize(AUDIO_MAX) + ' par son, ' + fmtSize(TOTAL_MAX) + ' par salle.';
+    setBtn(filesBtn, '📁', names.length ? 'Fichiers (' + names.length + ')' : 'Fichiers');
+  }
+
+  // Les programmes (Pygame, Tkinter) récupèrent les fichiers par cette fonction
+  window.ptkFiles = () => {
+    const out = [];
+    yFiles.forEach((v, k) => out.push({ name: k, data: v.data }));
+    const lg = legacyPyxres();
+    if (lg && !out.some(f => f.name === lg.name)) out.push({ name: lg.name, data: lg.data });
+    return out;
+  };
+
+  // ---------- Sons : lus par la page, pilotés depuis les programmes (module « sound » et pygame.mixer) ----------
+  const audioPlays = new Map();
+  const audioUrls = new Map();
+  let audioSeq = 0;
+  function audioUrl(name) {
+    const f = yFiles.get(name);
+    if (!f || !/^audio\//.test(f.type)) return null;
+    const c = audioUrls.get(name);
+    if (c && c.t === f.t) return c.url;
+    if (c) URL.revokeObjectURL(c.url);
+    const url = URL.createObjectURL(new Blob([f.data], { type: f.type }));
+    audioUrls.set(name, { url: url, t: f.t });
+    return url;
+  }
+  function audioName(n) { return cleanFileName(String(n).split(/[\\/]/).pop()); }
+  function audioRetry() {
+    audioPlays.forEach(st => { if (st.blocked) { st.blocked = false; st.a.play().catch(() => { st.blocked = true; }); } });
+  }
+  window.addEventListener('pointerdown', audioRetry);
+  window.addEventListener('keydown', audioRetry);
+  window.ptkAudio = {
+    find(name) { const n = audioName(name); return audioUrl(n) ? n : null; },
+    play(name, loops, volume, onEnd) {
+      const url = audioUrl(audioName(name));
+      if (!url) return -1;
+      const a = new Audio(url);
+      let v = Number(volume);
+      if (!(v >= 0)) v = 1;
+      a.volume = Math.min(1, v);
+      const h = ++audioSeq;
+      const st = { a: a, left: Number(loops) || 0, onEnd: onEnd, blocked: false };
+      if (st.left < 0) a.loop = true;
+      a.addEventListener('ended', () => {
+        if (st.left > 0) { st.left--; a.currentTime = 0; a.play().catch(() => {}); }
+        else { audioPlays.delete(h); if (st.onEnd) st.onEnd(); }
+      });
+      audioPlays.set(h, st);
+      a.play().catch(() => { st.blocked = true; });
+      return h;
+    },
+    stop(h) {
+      const keys = (h === undefined || h === null) ? Array.from(audioPlays.keys()) : [h];
+      keys.forEach(k => {
+        const st = audioPlays.get(k);
+        if (st) { st.a.pause(); st.a.currentTime = 0; audioPlays.delete(k); if (st.onEnd) st.onEnd(); }
+      });
+    },
+    pause(h) { const st = audioPlays.get(h); if (st) st.a.pause(); },
+    resume(h) { const st = audioPlays.get(h); if (st) st.a.play().catch(() => {}); },
+    volume(h, v) { const st = audioPlays.get(h); if (st) st.a.volume = Math.max(0, Math.min(1, Number(v))); },
+    busy(h) { const st = audioPlays.get(h); return !!st && !st.a.paused && !st.a.ended; },
+    position(h) { const st = audioPlays.get(h); return st ? Math.floor(st.a.currentTime * 1000) : 0; },
+    seek(h, sec) { const st = audioPlays.get(h); if (st) { try { st.a.currentTime = Number(sec) || 0; } catch (e) {} } },
+    length(name) { return audioDur.get(audioName(name)) || 0; }
+  };
+  window.ptkStopAudio = () => window.ptkAudio.stop();
+
+  yFiles.observe(renderFiles);
+  renderFiles();
+  filesBtn.addEventListener('click', e => { e.stopPropagation(); filesPanel.classList.toggle('open'); });
+  filesPanel.addEventListener('click', e => e.stopPropagation());
+  document.addEventListener('click', () => filesPanel.classList.remove('open'));
+  $('filesPick').addEventListener('click', () => filesInput.click());
+  filesInput.addEventListener('change', async () => { await importFiles(filesInput.files); filesInput.value = ''; });
+  filesPanel.addEventListener('dragover', e => { e.preventDefault(); filesPanel.classList.add('drag'); });
+  filesPanel.addEventListener('dragleave', () => filesPanel.classList.remove('drag'));
+  filesPanel.addEventListener('drop', async e => {
+    e.preventDefault();
+    filesPanel.classList.remove('drag');
+    await importFiles(e.dataTransfer.files);
+  });
+
+  // ---------- Salles verrouillées (démonstrations) ----------
+  let roomLocked = false;
+  const lockBtn = $('lockBtn'), lockPanel = $('lockPanel'), lockToggle = $('lockToggle');
+  const lockMsg = $('lockMsg'), lockState = $('lockState'), lockBadge = $('lockBadge'), demoList = $('demoList');
+
+  function lockMessage(text, cls) { lockMsg.textContent = text || ''; lockMsg.className = cls || ''; }
+
+  function applyLock() {
+    roomLocked = yMeta.get('locked') === true;       // drapeau posé par le serveur : un client ne peut pas le modifier
+    editor.setOption('readOnly', roomLocked);
+    document.body.classList.toggle('room-locked', roomLocked);
+    lockBadge.style.display = roomLocked ? 'inline-block' : 'none';
+    setBtn(lockBtn, roomLocked ? '🔒' : '🏠', room);
+    lockState.textContent = roomLocked
+      ? 'Cette salle est verrouillée : le code et les fichiers ne peuvent plus être modifiés. Vous pouvez lancer le programme, ou le copier dans une nouvelle salle pour le modifier.'
+      : 'Cette salle est modifiable. Un administrateur peut la verrouiller pour en faire une démonstration.';
+    lockToggle.textContent = roomLocked ? '🔓 Déverrouiller (mot de passe)' : '🔒 Verrouiller (mot de passe)';
+    const fp = document.getElementById('filesPick');
+    if (fp) fp.disabled = roomLocked;
+  }
+  yMeta.observe(applyLock);
+  applyLock();
+
+  async function adminLock(lock) {
+    let pw = null;
+    try { pw = sessionStorage.getItem('pt_admin'); } catch (e) {}
+    if (!pw) pw = window.prompt('Mot de passe administrateur :');
+    if (!pw) return;
+    lockMessage('…');
+    try {
+      const r = await fetch(basePath + 'ws/_admin/lock', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room: room, locked: lock, password: pw })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.ok) {
+        try { sessionStorage.setItem('pt_admin', pw); } catch (e) {}
+        lockMessage(lock ? 'Salle verrouillée.' : 'Salle déverrouillée.', 'ok');
+        loadDemos();
+      } else {
+        try { sessionStorage.removeItem('pt_admin'); } catch (e) {}
+        lockMessage(j.error || (r.ok ? 'Le serveur ne gère pas le verrouillage : mettez server.js à jour.' : 'Erreur ' + r.status), 'err');
+      }
+    } catch (e) {
+      lockMessage('Serveur injoignable.', 'err');
+    }
+  }
+
+  async function loadDemos() {
+    demoList.textContent = '';
+    const empty = text => { const d = document.createElement('div'); d.className = 'empty'; d.textContent = text; demoList.appendChild(d); };
+    try {
+      const r = await fetch(basePath + 'ws/_rooms', { cache: 'no-store' });
+      const list = (await r.json()).filter(x => x.locked);
+      if (!list.length) { empty('Aucune salle de démonstration.'); return; }
+      list.forEach(x => {
+        const b = document.createElement('button');
+        b.textContent = '🔒 ' + x.name;
+        if (x.name === room) b.className = 'current';
+        b.addEventListener('click', () => { location.search = '?room=' + encodeURIComponent(x.name); });
+        demoList.appendChild(b);
+      });
+    } catch (e) {
+      empty('Liste indisponible.');
+    }
+  }
+
+  lockBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    lockPanel.classList.toggle('open');
+    if (lockPanel.classList.contains('open')) { lockMessage(''); loadDemos(); }
+  });
+  lockPanel.addEventListener('click', e => e.stopPropagation());
+  document.addEventListener('click', () => lockPanel.classList.remove('open'));
+  lockToggle.addEventListener('click', () => adminLock(!roomLocked));
+  $('lockFork').addEventListener('click', () => {
+    try { sessionStorage.setItem('pt_fork', JSON.stringify({ code: editor.getValue(), mode: modeSel.value })); } catch (e) {}
+    const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+    let c = '';
+    crypto.getRandomValues(new Uint8Array(6)).forEach(b => { c += chars[b % chars.length]; });
+    location.search = '?room=salle-' + c;
+  });
+
+  // ---------- Barre compacte, pseudos uniques, couleurs par auteur ----------
+  const byId = id => document.getElementById(id);
+
+  function uiToast(text) {
+    let t = byId('toast');
+    if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+    t.textContent = text;
+    t.style.display = 'block';
+    clearTimeout(uiToast.timer);
+    uiToast.timer = setTimeout(() => { t.style.display = 'none'; }, 5000);
+  }
+
+  // Un bouton = une icône + un libellé (le libellé disparaît sur petit écran)
+  function setBtn(btn, icon, label) {
+    btn.querySelector('.ic').textContent = icon;
+    btn.querySelector('.lbl').textContent = ' ' + label;
+  }
+  [['runBtn', '▶', 'Lancer'], ['runAllBtn', '▶▶', 'Tous'], ['stopBtn', '■', 'Arrêter']].forEach(([id, ic, lb]) => {
+    const b = byId(id);
+    if (b) setBtn(b, ic, lb);
+  });
+
+  // Sur téléphone, le champ pseudo passe dans ce menu
+  const uiMq = window.matchMedia('(max-width: 700px)');
+  const nameHome = nameInput.parentNode, nameNext = nameInput.nextSibling;
+  function placeName() {
+    const box = byId('nameBox');
+    if (!box) return;
+    if (uiMq.matches) {
+      box.appendChild(nameInput);
+      box.classList.add('ready');
+    } else {
+      box.classList.remove('ready');
+      nameHome.insertBefore(nameInput, nameNext);
+    }
+  }
+  uiMq.addEventListener('change', placeName);
+  placeName();
+
+  // L'état de la connexion n'est plus écrit dans la barre : info-bulle sur le voyant
+  const stBox = byId('status'), stText = byId('statusText');
+  if (stBox && stText) {
+    new MutationObserver(() => { stBox.title = stText.textContent; })
+      .observe(stText, { childList: true, characterData: true, subtree: true });
+  }
+
+  // ---- Pseudos uniques (le dernier arrivé cède ; changement manuel refusé si le pseudo est pris)
+  const nameKey = n => String(n || '').trim().toLowerCase();
+  function publishUser() {
+    awareness.setLocalStateField('user', { name: me.name, color: me.color, since: me.since });
+  }
+  function othersWithName(name) {
+    const key = nameKey(name);
+    let n = 0;
+    awareness.getStates().forEach((st, id) => {
+      if (id !== awareness.clientID && st.user && nameKey(st.user.name) === key) n++;
+    });
+    return n;
+  }
+  function freeName(base) {
+    let i = 2, n = base;
+    while (othersWithName(n) > 0) { const suf = '_' + (i++); n = base.slice(0, 20 - suf.length) + suf; }
+    return n;
+  }
+  function arrivedBefore(st, id) {
+    const their = Number(st.user.since) || 0;
+    return their < me.since || (their === me.since && id < awareness.clientID);
+  }
+  function resolveConflicts() {
+    const mine = nameKey(me.name), myColor = safeColor(me.color).toLowerCase();
+    let nameClash = false, colorClash = false;
+    const used = new Set();
+    awareness.getStates().forEach((st, id) => {
+      if (id === awareness.clientID || !st.user) return;
+      used.add(safeColor(st.user.color).toLowerCase());
+      if (!arrivedBefore(st, id)) return;
+      if (nameKey(st.user.name) === mine) nameClash = true;
+      if (safeColor(st.user.color).toLowerCase() === myColor) colorClash = true;
+    });
+    let changed = false;
+    if (nameClash) {
+      const old = me.name;
+      me.name = freeName(old);
+      nameInput.value = me.name;
+      changed = true;
+      uiToast('Le pseudo « ' + old + ' » est déjà utilisé : vous êtes « ' + me.name + ' ».');
+    }
+    if (colorClash) {
+      const free = COLORS.find(c => !used.has(c.toLowerCase()));
+      if (free) { me.color = free; changed = true; }
+    }
+    if (changed) publishUser();
+  }
+  awareness.on('change', resolveConflicts);
+  resolveConflicts();
+
+  // ---- Bouton 🎨 : colore le code selon son auteur ; un second clic revient à la normale
+  let authorsOn = false, authorMarks = [], authorsQueued = false;
+  const authorBtn = byId('authorBtn');
+
+  function scheduleAuthors() {
+    if (authorsQueued) return;
+    authorsQueued = true;
+    requestAnimationFrame(() => { authorsQueued = false; drawAuthors(); });
+  }
+  function drawAuthors() {
+    authorMarks.forEach(m => m.clear());
+    authorMarks = [];
+    if (!authorsOn) return;
+    let idx = 0;
+    yText.toDelta().forEach(d => {
+      const len = typeof d.insert === 'string' ? d.insert.length : 1;
+      const a = d.attributes && d.attributes.author;
+      if (a && len) {
+        authorMarks.push(editor.markText(editor.posFromIndex(idx), editor.posFromIndex(idx + len), {
+          css: 'background-color:' + safeColor(a.color) + '40',
+          title: String(a.name || '?').slice(0, 20)
+        }));
+      }
+      idx += len;
+    });
+  }
+  authorBtn.addEventListener('click', () => {
+    authorsOn = !authorsOn;
+    authorBtn.classList.toggle('on', authorsOn);
+    scheduleAuthors();
+  });
+  yText.observe(scheduleAuthors);
+
+  // Un ancien bouton « charger pyxres » (ajouté à la main dans la barre) est rangé dans le panneau Fichiers
+  (function () {
+    const panel = byId('filesPanel'), hd = document.querySelector('header');
+    if (!panel || !hd) return;
+    const anchor = byId('filesInfo');
+    Array.from(hd.children).forEach(el => {
+      if (el.id === 'filesWrap' || el.contains(panel)) return;
+      const txt = (el.textContent || '') + ' ' + (el.getAttribute('title') || '') + ' ' + (el.getAttribute('accept') || '') + ' ' + (el.id || '');
+      if (/pyxres/i.test(txt)) { el.classList.add('moved'); panel.insertBefore(el, anchor); }
+    });
+  })();
+
+  // Rafraîchit les libellés des boutons qui viennent d'être remplacés
+  if (typeof renderFiles === 'function') renderFiles();
+  if (typeof applyLock === 'function') applyLock();
+
+  // Statut / liste des participants
+  const statusBox = $('status'), statusText = $('statusText'), usersEl = $('users');
+  function refreshStatus(connected) {
+    statusBox.classList.toggle('on', connected);
+    const states = awareness.getStates();
+    const n = states.size;
+    statusText.textContent = connected
+      ? `Salle « ${room} » — ${n} connecté${n > 1 ? 's' : ''}`
+      : 'Hors ligne (reconnexion…)';
+    usersEl.textContent = '';
+    states.forEach((st, id) => {
+      if (!st.user) return;
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.style.background = safeColor(st.user.color);
+      const full = String(st.user.name || '?').slice(0, 20);
+      chip.textContent = full.charAt(0).toUpperCase();
+      chip.title = full + (id === awareness.clientID ? ' (vous)' : '');
+      if (id === awareness.clientID) chip.style.boxShadow = '0 0 0 2px #fff';
+      usersEl.appendChild(chip);
+    });
+  }
+  provider.on('status', e => refreshStatus(e.status === 'connected'));
+  awareness.on('change', () => { refreshStatus(provider.wsconnected); scheduleRedraw(); });
+  refreshStatus(false);
+  publishCursor();
+
+  /* ---------- Exécution (iframe isolée, locale à chaque navigateur) ---------- */
+  function log(text, cls) {
+    const span = document.createElement('span');
+    if (cls) span.className = cls;
+    span.textContent = text;
+    logEl.appendChild(span);
+    while (logEl.childNodes.length > 500) logEl.removeChild(logEl.firstChild);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  window.addEventListener('message', e => {
+    if (!e.data || !e.data.type) return;
+    if (e.data.type === 'console-ready') {
+      setConsoleReady(true);
+      consoleStatus.textContent = '— Prêt (Python / Pyodide) —';
+      return;
+    }
+    if (e.data.type === 'console-done') {
+      setConsoleReady(true);
+      return;
+    }
+    if (e.data.type === 'log') log(e.data.text);
+    if (e.data.type === 'err') log(e.data.text + '\n', 'err');
+    if (e.data.type === 'info') log(e.data.text, 'info');
+  });
+
+  const jsStr = s => JSON.stringify(s).replace(/</g, '\\u003c');
+
+  function pyxelDoc(code, resources) {
+    // Chaque .pyxres est écrit sous « nom.pyxres » et « assets/nom.pyxres » ; le plus récent l'est aussi sous
+    // « room.pyxres » et « assets/room.pyxres » (compatibilité avec l'ancien bouton « Charger .pyxres »).
+    // L'amorce tient sur UNE seule ligne : les numéros de ligne des erreurs sont ensuite corrigés (voir OFF).
+    const b64 = u8 => {
+      let bin = '';
+      for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+      return btoa(bin);
+    };
+    let resourceBootstrap = '';
+    if (resources && resources.length) {
+      const py = ['import base64 as __pt_b, os as __pt_o', '__pt_o.makedirs("assets", exist_ok=True)',
+                  'def __pt_w(names, b):', '    d = __pt_b.b64decode(b)', '    for n in names:', '        with open(n, "wb") as f:',
+                  '            f.write(d)'];
+      resources.forEach((r, i) => {
+        const names = [r.name, 'assets/' + r.name];
+        if (i === resources.length - 1) names.push('room.pyxres', 'assets/room.pyxres');
+        py.push('__pt_w(' + JSON.stringify(names) + ', ' + JSON.stringify(b64(r.data)) + ')');
+      });
+      py.push('del __pt_w, __pt_b, __pt_o');
+      resourceBootstrap = 'exec(' + JSON.stringify(py.join('\n')) + ')  # PYXRES_ROOM_PATCH_V2\n';
+    }
+    const lineOffset = resourceBootstrap ? 1 : 0;
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}</style></head><body>
+<div id="pyxel-screen"></div>
+<script>
+var OFF = ${lineOffset};
+(function () {
+  function fmt(a) {
+    if (typeof a === 'string') return a;
+    if (a instanceof Error) return a.stack || a.message;
+    try { return JSON.stringify(a); } catch (e) { return String(a); }
+  }
+  function send(type, args) {
+    if (args.length === 1 && args[0] && typeof args[0] === 'object' && args[0].command) return;
+    let text = args.map(fmt).join(' ');
+    if (OFF) text = text.replace(/(File "<exec>", line )(\\d+)/g, function (m, a, n) { return a + Math.max(1, Number(n) - OFF); });
+    if (/^(Launch Pyxel|Loading |Loaded |Attempting to fetch|Copied |Created directory|Connected )/.test(text)) return;
+    parent.postMessage({type: type, text: text + (type === 'log' ? '\\n' : '')}, '*');
+  }
+  [['log','log'], ['info','log'], ['warn','err'], ['error','err']].forEach(function (p) {
+    const orig = console[p[0]].bind(console);
+    console[p[0]] = function () { send(p[1], Array.from(arguments)); orig.apply(null, arguments); };
+  });
+  window.addEventListener('error', e => send('err', [e.message]));
+  window.addEventListener('unhandledrejection', e => send('err', [String(e.reason)]));
+})();
+<\/script>
+<script src="https://cdn.jsdelivr.net/gh/kitao/pyxel/wasm/pyxel.js"><\/script>
+<script>
+launchPyxel({ command: "run", script: ${jsStr(resourceBootstrap + code)} });
+var __t = setInterval(function () {
+  if (window.pyxelContext && window.pyxelContext.resolveInput) {
+    clearInterval(__t);
+    window.pyxelContext.resolveInput();
+  }
+}, 50);
+<\/script></body></html>`;
+  }
+
+  function turtleDoc(code) {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+html,body{margin:0;height:100%;background:#cfcfcf;overflow:hidden}
+#wrap{position:absolute;left:0;top:0;width:800px;height:600px;background:#fff;transform-origin:0 0;box-shadow:0 0 0 1px #999}
+#out{width:800px;height:600px}
+</style></head><body>
+<div id="wrap"><div id="out"></div></div>
+<script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"><\/script>
+<script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"><\/script>
+<script>
+function builtinRead(x) {
+  if (Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined)
+    throw "File not found: '" + x + "'";
+  return Sk.builtinFiles["files"][x];
+}
+Sk.pre = "out";
+Sk.configure({
+  output: t => parent.postMessage({type:'log', text:t}, '*'),
+  read: builtinRead,
+  __future__: Sk.python3,
+  inputfun: p => prompt(p)
+});
+(Sk.TurtleGraphics || (Sk.TurtleGraphics = {})).target = 'out';
+var W = 800, H = 600;
+Sk.TurtleGraphics.width  = W;
+Sk.TurtleGraphics.height = H;
+var wrap = document.getElementById('wrap');
+function fit() {
+  var k = Math.min(window.innerWidth / W, window.innerHeight / H);
+  var x = (window.innerWidth - W * k) / 2, y = (window.innerHeight - H * k) / 2;
+  wrap.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + k + ')';
+}
+fit();
+window.addEventListener('resize', fit);
+Sk.misceval.asyncToPromise(() => Sk.importMainWithBody("<stdin>", false, ${jsStr(code)}, true))
+  .catch(e => parent.postMessage({type:'err', text:e.toString()}, '*'));
+<\/script></body></html>`;
+  }
+
+  function consoleDoc(code) {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"><\/script>
+<script>
+function post(type, text) { parent.postMessage({type: type, text: text}, '*'); }
+function clean(error) {
+  return String(error && (error.message || error) || 'Erreur Python');
+}
+var inputBuffer = [];
+var py;
+(async function () {
+  try {
+    post('info', 'Chargement de Python (Pyodide)…\\n');
+    py = await loadPyodide({
+      stdout: function (text) { post('log', text + '\\n'); },
+      stderr: function (text) { post('err', text); }
+    });
+    py.setStdin({
+      stdin: function () {
+        if (!inputBuffer.length) {
+          var line = window.prompt('Saisie demandée par input() :');
+          if (line === null) return null;
+          inputBuffer = Array.from(new TextEncoder().encode(String(line) + '\\n'));
+        }
+        return inputBuffer.shift();
+      },
+      isatty: true
+    });
+    await py.runPythonAsync([
+      'import ast as __pt_ast',
+      'def __pt_eval(source):',
+      '    tree = __pt_ast.parse(source, filename="<console>")',
+      '    if tree.body and isinstance(tree.body[-1], __pt_ast.Expr):',
+      '        prefix = __pt_ast.Module(body=tree.body[:-1], type_ignores=[])',
+      '        if prefix.body:',
+      '            exec(compile(prefix, "<console>", "exec"))',
+      '        expression = __pt_ast.Expression(tree.body[-1].value)',
+      '        value = eval(compile(expression, "<console>", "eval"))',
+      '        if value is not None:',
+      '            print(repr(value))',
+      '    else:',
+      '        exec(compile(tree, "<console>", "exec"))'
+    ].join('\\n'));
+    var script = ${jsStr(code)};
+    await py.loadPackagesFromImports(script);
+    await py.runPythonAsync(script);
+    post('console-ready', '');
+  } catch (error) {
+    post('err', clean(error));
+    if (typeof py !== 'undefined') post('console-ready', '');
+  }
+})();
+window.addEventListener('message', async function (event) {
+  if (!event.data || event.data.type !== 'console-input' || typeof py === 'undefined') return;
+  try {
+    py.globals.set('__pt_console_source', event.data.code);
+    await py.runPythonAsync('__pt_eval(__pt_console_source)');
+  } catch (error) {
+    post('err', clean(error));
+  } finally {
+    py.globals.delete('__pt_console_source');
+    post('console-done', '');
+  }
+});
+<\/script></body></html>`;
+  }
+
+  // Disposition : en mode console, pas d'écran de jeu, la console occupe tout le volet
+  function applyModeLayout() {
+    document.body.classList.toggle('mode-console', modeSel.value === 'console');
+    consoleTitle.textContent = modeSel.value === 'console' ? 'Console Python (Pyodide)' : 'Console';
+    setConsoleReady(consoleReady);
+  }
+  modeSel.addEventListener('change', applyModeLayout);
+
+  function tkDoc(code) {
+    const shimUrl = location.origin + basePath + 'tkshim.py?v=' + Date.now();
+    const sndUrl = location.origin + basePath + 'sndshim.py?v=' + Date.now();
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>html,body{margin:0;min-height:100%;background:#2b2b2e;font-family:Arial,sans-serif}</style></head><body>
+<div id="tk-desktop"></div>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"><\/script>
+<script>
+function post(type, text) { parent.postMessage({type: type, text: text}, '*'); }
+function clean(m) {
+  var i = m.indexOf('File "<exec>"');
+  return i < 0 ? m : 'Traceback (most recent call last):\\n  ' + m.slice(i);
+}
+(async function () {
+  try {
+    post('log', 'Chargement de Python (premier lancement : quelques secondes)…\\n');
+    var py = await loadPyodide({
+      stdout: function (t) { post('log', t + '\\n'); },
+      stderr: function (t) { post('err', t); }
+    });
+    var resp = await fetch(${jsStr(shimUrl)});
+    if (!resp.ok) throw new Error('tkshim.py introuvable (HTTP ' + resp.status + ') : copiez-le dans le dossier du site');
+    py.FS.writeFile('/home/pyodide/_ptk.py', await resp.text());
+    var files = (parent.ptkFiles ? parent.ptkFiles() : []);
+    for (var i = 0; i < files.length; i++) {
+      py.FS.writeFile('/home/pyodide/' + String(files[i].name).replace(/[^A-Za-z0-9._-]/g, '_'), files[i].data);
+    }
+    try { var sr = await fetch(${jsStr(sndUrl)}); if (sr.ok) py.FS.writeFile('/home/pyodide/sndshim.py', await sr.text()); } catch (e) {}
+    py.runPython('import _ptk; _ptk.install()');
+    var code = ${jsStr(code)};
+    await py.loadPackagesFromImports(code);
+    await py.runPythonAsync(code);
+  } catch (e) { post('err', clean(String(e.message || e))); }
+})();
+<\/script></body></html>`;
+  }
+
+  function pgDoc(code) {
+    const shimUrl = location.origin + basePath + 'pgshim.py?v=' + Date.now();
+    const sndUrl = location.origin + basePath + 'sndshim.py?v=' + Date.now();
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>html,body{margin:0;height:100%;background:#111;overflow:hidden}
+body{display:flex;align-items:center;justify-content:center}
+canvas{outline:none;image-rendering:pixelated;background:#000}</style></head><body>
+<canvas id="canvas" tabindex="0" width="640" height="480"></canvas>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"><\/script>
+<script>
+function post(type, text) { parent.postMessage({type: type, text: text}, '*'); }
+function clean(m) {
+  var i = m.indexOf('File "<programme>"');
+  if (i < 0) i = m.indexOf('File "<exec>"');
+  return i < 0 ? m : 'Traceback (most recent call last):\\n  ' + m.slice(i);
+}
+var cv = document.getElementById('canvas');
+function fit() {
+  var w = cv.width, h = cv.height;
+  if (!w || !h) return;
+  var k = Math.min(window.innerWidth / w, window.innerHeight / h);
+  cv.style.width = Math.max(1, Math.floor(w * k)) + 'px';
+  cv.style.height = Math.max(1, Math.floor(h * k)) + 'px';
+}
+setInterval(fit, 250);
+window.addEventListener('resize', fit);
+window.addEventListener('keydown', function (e) {
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].indexOf(e.key) >= 0) e.preventDefault();
+}, true);
+cv.addEventListener('mousedown', function () { cv.focus(); window.focus(); });
+(async function () {
+  try {
+    post('log', 'Chargement de Python et de pygame-ce (premier lancement : quelques secondes)…\\n');
+    var py = await loadPyodide({
+      stdout: function (t) { post('log', t + '\\n'); },
+      stderr: function (t) { post('err', t); }
+    });
+    py._api._skip_unwind_fatal_error = true;
+    py.canvas.setCanvas2D(cv);
+    var resp = await fetch(${jsStr(shimUrl)});
+    if (!resp.ok) throw new Error('pgshim.py introuvable (HTTP ' + resp.status + ') : copiez-le dans le dossier du site');
+    py.FS.writeFile('/home/pyodide/pgshim.py', await resp.text());
+    var files = (parent.ptkFiles ? parent.ptkFiles() : []);
+    for (var i = 0; i < files.length; i++) {
+      py.FS.writeFile('/home/pyodide/' + String(files[i].name).replace(/[^A-Za-z0-9._-]/g, '_'), files[i].data);
+    }
+    try { var sr = await fetch(${jsStr(sndUrl)}); if (sr.ok) py.FS.writeFile('/home/pyodide/sndshim.py', await sr.text()); } catch (e) {}
+    await py.loadPackage('pygame-ce', {
+      messageCallback: function (m) { post('log', m + '\\n'); },
+      errorCallback: function (m) { post('err', String(m)); }
+    });
+    if (!py.loadedPackages['pygame-ce']) throw new Error("pygame-ce n'a pas pu etre charge (voir les messages ci-dessus)");
+    var code = ${jsStr(code)};
+    await py.loadPackagesFromImports(code);
+    py.globals.set('_ptk_code', code);
+    await py.runPythonAsync('import pgshim\\nawait pgshim.run(_ptk_code)');
+  } catch (e) { post('err', clean(String(e.message || e))); }
+})();
+<\/script></body></html>`;
+  }
+
+  let frame = null;
+  function stop() {
+    if (window.ptkStopAudio) window.ptkStopAudio();
+    if (frame) { frame.remove(); frame = null; }
+    setConsoleReady(false);
+    consoleStatus.textContent = '';
+    $('hint').style.display = '';
+  }
+  function run() {
+    stop();
+    logEl.textContent = '';
+    log('— Lancement (' + modeSel.value + ') —\n', 'info');
+    $('hint').style.display = 'none';
+    frame = document.createElement('iframe');
+    frame.allow = 'autoplay; gamepad';
+    if (modeSel.value === 'pygame') {
+      frame.srcdoc = pgDoc(editor.getValue());
+      frame.addEventListener('load', () => { try { frame.contentWindow.focus(); } catch (e) {} });
+      screenEl.appendChild(frame);
+      return;
+    }
+    if (modeSel.value === 'tkinter') {
+      frame.srcdoc = tkDoc(editor.getValue());
+      screenEl.appendChild(frame);
+      return;
+    }
+    const code = editor.getValue();
+    const pyxres = modeSel.value === 'pyxel' ? pyxresList() : [];
+    if (pyxres.length) {
+      log('— Ressources Pyxel : ' + pyxres.map(r => r.name).join(', ') +
+          ' (room.pyxres = ' + pyxres[pyxres.length - 1].name + ') —\n', 'info');
+    }
+
+    frame.srcdoc = modeSel.value === 'turtle' ? turtleDoc(code)
+                 : modeSel.value === 'console' ? consoleDoc(code)
+                 : pyxelDoc(code, pyxres);
+    if (modeSel.value === 'console') {
+      frame.className = 'hiddenFrame';
+      consoleStatus.textContent = '— Initialisation de Python… —';
+      document.body.appendChild(frame);
+      return;
+    }
+    frame.addEventListener('load', () => { try { frame.contentWindow.focus(); } catch (e) {} });
+    screenEl.appendChild(frame);
+  }
+  $('runBtn').addEventListener('click', run);
+  $('runAllBtn').addEventListener('click', () => {
+    if (!roomLocked) {
+      lastRunSignal = Date.now();
+      yMeta.set('runSignal', lastRunSignal);
+    }
+    run();
+  });
+  $('stopBtn').addEventListener('click', stop);
+  $('clearBtn').addEventListener('click', () => { logEl.textContent = ''; });
+  $('consoleInputRow').addEventListener('submit', e => {
+    e.preventDefault();
+    const source = consoleInput.value;
+    if (!source.trim() || !consoleReady || !frame || modeSel.value !== 'console') return;
+    source.split('\n').forEach((line, index) => log((index ? '... ' : '>>> ') + line + '\n', 'prompt'));
+    consoleInput.value = '';
+    setConsoleReady(false);
+    frame.contentWindow.postMessage({ type: 'console-input', code: source }, '*');
+  });
+  consoleInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      $('consoleInputRow').requestSubmit();
+    }
+  });
+</script>
+</body>
+</html>
