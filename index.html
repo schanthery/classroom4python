@@ -20,7 +20,15 @@
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     padding: 8px 14px; background: #252526; border-bottom: 1px solid #333;
   }
-  header h1 { font-size: 18px; margin: 0 12px 0 0; }
+  header h1 {
+    display: flex; flex: none; flex-direction: column; gap: 2px;
+    margin: 0 12px 0 0; line-height: 1.1; white-space: nowrap;
+  }
+  .brand-name { font-size: 18px; }
+  .brand-classroom { color: #61dafb; }
+  .brand-four { color: #f1c40f; }
+  .brand-python { color: #a78bfa; }
+  .brand-tagline { color: #fff; font-size: 10px; font-weight: normal; }
   select, button {
     padding: 8px 14px; border-radius: 4px; border: none; font-size: 14px;
     font-weight: bold; cursor: pointer;
@@ -98,6 +106,7 @@
     font: bold 11px/1 system-ui, Arial, sans-serif; color: #fff;
     padding: 2px 5px; border-radius: 3px 3px 3px 0; opacity: .9;
   }
+  body.hide-cursor-labels .rc-label { display: none; }
 
   #roomNew, #roomJoin, #roomCopy { background: #2d6cdf; color: #fff; }
   #roomNew:hover, #roomJoin:hover, #roomCopy:hover { background: #2559b8; }
@@ -155,6 +164,12 @@
   #lockToggle { background: #16a085 !important; }
   body.room-locked #lockToggle { background: #c0392b !important; }
   #lockState { font-size: 13px; color: #ddd; line-height: 1.4; }
+  #ownerControls { display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid #444; }
+  #ownerControls.visible { display: block; }
+  #ownerControls button { width: 100%; margin-top: 6px; padding: 8px 10px; font-size: 13px; background: #3c3c3c; color: #fff; }
+  #ownerControls button:hover { background: #505050; }
+  body.owner-locked #ownerEditToggle { background: #c0392b; }
+  #ownerState { color: #aaa; font-size: 12px; line-height: 1.4; }
   #lockMsg { font-size: 12px; min-height: 0; margin-top: 6px; white-space: pre-line; }
   #lockMsg.err { color: #ff6b6b; } #lockMsg.ok { color: #7fd17f; }
   #lockPanel h4 { margin: 12px 0 4px; font-size: 12px; color: #aaa; text-transform: uppercase; letter-spacing: .05em; }
@@ -167,7 +182,9 @@
 
   /* ---- barre du haut : une seule ligne sur ordinateur, compacte sur téléphone ---- */
   header { flex-wrap: nowrap; gap: 6px; padding: 6px 10px; }
-  header h1 { font-size: 15px; margin: 0 6px 0 0; white-space: nowrap; }
+  header h1 { margin-right: 6px; }
+  .brand-name { font-size: 15px; }
+  .brand-tagline { font-size: 9px; }
   header select, header button, header input { padding: 6px 10px; font-size: 13px; white-space: nowrap; flex: none; }
   header #nameInput { width: 110px; }
   #statusText { display: none; }
@@ -194,7 +211,6 @@
   #toast { display: none; position: fixed; top: 54px; left: 50%; transform: translateX(-50%); z-index: 300;
            background: #333; color: #fff; border: 1px solid #666; border-radius: 6px; padding: 8px 14px;
            font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,.5); max-width: 90vw; }
-  @media (max-width: 1100px) { header h1 { display: none; } }
   @media (max-width: 1000px) {
     header .lbl { display: none; }
     header #nameInput { width: 90px; }
@@ -212,6 +228,7 @@
     #console { height: 110px; min-height: 60px; }
   }
 
+  @media (max-width: 800px) { header h1 { display: none; } }
   @media (max-width: 800px) { main { flex-direction: column; } }
   footer {
     display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -225,7 +242,10 @@
 <body>
 
 <header>
-  <h1>classroom4python</h1>
+  <h1>
+    <span class="brand-name"><span class="brand-classroom">classroom</span><span class="brand-four">4</span><span class="brand-python">python</span></span>
+    <span class="brand-tagline">Codez à plusieurs simultanément</span>
+  </h1>
   <select id="mode" title="Mode d'exécution (partagé avec les autres participants)">
     <option value="pyxel">Pyxel</option>
     <option value="turtle">Turtle</option>
@@ -250,6 +270,11 @@
         <div id="nameBox"><div class="lab">Votre pseudo</div></div>
       </div>
       <div id="lockState"></div>
+      <div id="ownerControls">
+        <div id="ownerState"></div>
+        <button id="ownerEditToggle"></button>
+        <button id="ownerLabelsToggle"></button>
+      </div>
       <div id="lockMsg"></div>
       <button id="lockToggle"></button>
       <button id="lockFork" title="Crée une nouvelle salle modifiable avec le même code">📋 Copier le code dans une nouvelle salle</button>
@@ -258,17 +283,18 @@
     </div>
   </div>
   <div id="filesWrap">
-    <button id="filesBtn" title="Images partagées avec tous les participants de la salle"><span class="ic">📁</span><span class="lbl"> Fichiers</span></button>
+    <button id="filesBtn" title="Fichiers partagés avec tous les participants de la salle"><span class="ic">📁</span><span class="lbl"> Fichiers</span></button>
     <div id="filesPanel">
-      <button id="filesPick">⬆ Importer des images, sons ou .pyxres…</button>
-      <input id="filesInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg,.pyxres" multiple hidden>
+      <button id="filesPick">⬆ Importer des fichiers…</button>
+      <input id="filesInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg,.pyxres,.py" multiple hidden>
       <div id="filesInfo"></div>
       <div id="filesMsg"></div>
       <div id="filesList"></div>
-      <div id="filesHelp">Images (png, jpg, gif, webp, bmp) et sons (mp3, wav, ogg) : glissez-les ici, ils sont partagés avec toute la salle.<br>
+      <div id="filesHelp">Images (png, jpg, gif, webp, bmp), sons (mp3, wav, ogg), ressources Pyxel (.pyxres) et modules Python (.py) : glissez-les ici, ils sont partagés avec toute la salle.<br>
         Images : <code>pygame.image.load("nom.png")</code> · <code>PhotoImage(file="nom.png")</code><br>
         Sons : <code>pygame.mixer.Sound("nom.mp3").play()</code> · <code>import sound; sound.play("nom.mp3")</code><br>
         Pyxel : <code>pyxel.load("nom.pyxres")</code><br>
+        Module Python : <code>import nom_du_module</code> (fichier <code>nom_du_module.py</code>)<br>
         Cliquez sur un nom pour le copier.</div>
     </div>
   </div>
@@ -341,6 +367,10 @@ for i in range(36):
 
   const $ = id => document.getElementById(id);
   const logEl = $('log'), screenEl = $('screen'), modeSel = $('mode');
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
   const consoleInput = $('consoleInput'), consoleSubmit = $('consoleSubmit');
   const consoleStatus = $('consoleStatus'), consoleTitle = $('consoleTitle');
   let consoleReady = false;
@@ -364,12 +394,17 @@ for i in range(36):
 
   /* ---------- Collaboration ---------- */
   const room = new URLSearchParams(location.search).get('room') || 'main';
+  const ownerStorageKey = 'pt_owner:' + room;
+  const ownerKey = store.get(ownerStorageKey) || '';
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const basePath = location.pathname.replace(/[^/]*$/, '');          // ex: /classroom4python/
   const wsUrl = `${proto}//${location.host}${basePath}ws`;            // -> /classroom4python/ws/<room>
 
   const ydoc = new Y.Doc();
-  const provider = new WebsocketProvider(wsUrl, room, ydoc);
+  const provider = new WebsocketProvider(wsUrl, room, ydoc, {
+    params: ownerKey ? { ownerKey: ownerKey } : {},
+    disableBc: true
+  });
   const yText = ydoc.getText('code');
   const yMeta = ydoc.getMap('meta');
 
@@ -383,7 +418,7 @@ for i in range(36):
 
   // Éditeur local -> Yjs
   editor.on('change', (cm, ch) => {
-    if (applyingRemote) return;
+    if (applyingRemote || !canEditRoom()) return;
     const idx = cm.indexFromPos(ch.from);
     const removedLen = ch.removed.join('\n').length;
     const inserted = ch.text.join('\n');
@@ -413,7 +448,7 @@ for i in range(36):
   });
 
   // Mode (Pyxel / Turtle) partagé
-  modeSel.addEventListener('change', () => { if (!roomLocked) yMeta.set('mode', modeSel.value); });
+  modeSel.addEventListener('change', () => { if (canEditRoom()) yMeta.set('mode', modeSel.value); });
   yMeta.observe(() => {
     const m = yMeta.get('mode');
     if (m && modeSel.value !== m) modeSel.value = m;
@@ -446,15 +481,12 @@ for i in range(36):
     if (synced) lastRunSignal = yMeta.get('runSignal') || 0;
     if (synced && yMeta.get('mode')) modeSel.value = yMeta.get('mode');
     applyModeLayout();
+    if (synced) loadRoomState();
   });
 
   // Identité locale (nom + couleur, mémorisés dans le navigateur)
   const COLORS = ['#e74c3c', '#e67e22', '#d4ac0d', '#2ecc71', '#1abc9c', '#3498db', '#9b59b6', '#e84393',
                   '#00b894', '#fd79a8', '#00bcd4', '#a0522d', '#7f8fa6', '#ff7675', '#8d9440', '#6c5ce7'];
-  const store = {
-    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
-    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
-  };
   const me = {
     name: store.get('pt_name') || ('Anonyme ' + (10 + Math.floor(Math.random() * 90))),
     color: store.get('pt_color') || COLORS[Math.floor(Math.random() * COLORS.length)]
@@ -468,18 +500,28 @@ for i in range(36):
 
   const nameInput = $('nameInput');
   nameInput.value = me.name;
-  nameInput.addEventListener('change', () => {
+  nameInput.addEventListener('change', async () => {
     const wanted = nameInput.value.trim().slice(0, 20);
     if (!wanted) { nameInput.value = me.name; return; }
-    if (nameKey(wanted) !== nameKey(me.name) && othersWithName(wanted) > 0) {
+    if (nameKey(wanted) !== nameKey(me.name) &&
+        (othersWithName(wanted) > 0 || (!isRoomOwner && nameKey(wanted) === nameKey(roomOwnerName)))) {
       nameInput.value = me.name;
-      uiToast('Le pseudo « ' + wanted + ' » est déjà utilisé : choisissez-en un autre.');
+      uiToast(nameKey(wanted) === nameKey(roomOwnerName)
+        ? 'Ce pseudo est réservé au créateur de la salle.'
+        : 'Le pseudo « ' + wanted + ' » est déjà utilisé : choisissez-en un autre.');
       return;
     }
+    const previous = me.name;
     me.name = wanted;
     nameInput.value = me.name;
     store.set('pt_name', me.name);
     publishUser();
+    if (isRoomOwner && !await saveOwnerSettings({ ownerName: wanted })) {
+      me.name = previous;
+      nameInput.value = previous;
+      publishUser();
+      return;
+    }
   });
 
   const safeColor = c => (/^#[0-9a-f]{6}$/i.test(c) ? c : '#888888');
@@ -549,12 +591,40 @@ for i in range(36):
     location.search = '?room=' + encodeURIComponent(r);
   }
 
+  function makeOwnerKey() {
+    return Array.from(crypto.getRandomValues(new Uint8Array(32)))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function createRoom(name) {
+    const roomName = cleanRoom(name || '');
+    const key = makeOwnerKey();
+    try { localStorage.setItem('pt_owner:' + roomName, key); }
+    catch (e) {
+      uiToast('Impossible de conserver les droits du créateur dans ce navigateur.');
+      return false;
+    }
+    try {
+      const response = await fetch(basePath + 'ws/_room/create', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room: roomName, ownerName: me.name, ownerKey: key })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Erreur ' + response.status);
+      goToRoom(roomName);
+      return true;
+    } catch (e) {
+      try { localStorage.removeItem('pt_owner:' + roomName); } catch (storageError) {}
+      uiToast('Création de la salle impossible : ' + e.message);
+      return false;
+    }
+  }
+
   $('roomNew').addEventListener('click', () => {
     const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
     const bytes = crypto.getRandomValues(new Uint8Array(6));
-    let code = '';
-    bytes.forEach(b => { code += chars[b % chars.length]; });
-    goToRoom('salle-' + code);
+    const code = Array.from(bytes, b => chars[b % chars.length]).join('');
+    createRoom('salle-' + code);
   });
 
   const roomInput = $('roomInput');
@@ -608,9 +678,14 @@ for i in range(36):
   const PYXRES_MAX = 2 * 1024 * 1024;   // poids maximal d'un fichier .pyxres (Pyxel)
   const TOTAL_MAX = 6 * 1024 * 1024;    // poids total des fichiers d'une salle
   const COUNT_MAX = 30;                 // nombre maximal de fichiers par salle
+  const PY_MAX = 300 * 1024;            // poids maximal d'un module Python
   const filesBtn = $('filesBtn'), filesPanel = $('filesPanel'), filesList = $('filesList');
   const filesInfo = $('filesInfo'), filesMsg = $('filesMsg'), filesInput = $('filesInput');
   let fileUrls = [];
+  const PYTHON_KEYWORDS = new Set((
+    'False None True and as assert async await break class continue def del elif else except finally ' +
+    'for from global if import in is lambda nonlocal not or pass raise return try while with yield'
+  ).split(' '));
 
   function cleanFileName(n) {
     n = String(n).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_')
@@ -621,6 +696,11 @@ for i in range(36):
       n = n.slice(0, 40 - ext.length) + ext;
     }
     return n;
+  }
+  function pythonModuleName(name) {
+    if (!/\.py$/i.test(name)) return null;
+    const moduleName = name.slice(0, -3);
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(moduleName) && !PYTHON_KEYWORDS.has(moduleName) ? moduleName : null;
   }
   function sniffImage(b) {
     if (b.length < 12) return null;
@@ -653,18 +733,35 @@ for i in range(36):
   }
 
   async function importFiles(list) {
-    if (typeof roomLocked !== 'undefined' && roomLocked) { filesMessage('Salle verrouillée : import impossible.', 'err'); return; }
+    if (!canEditRoom()) { filesMessage('Salle verrouillée : import impossible.', 'err'); return; }
     const errs = [];
     let added = 0;
     for (const f of Array.from(list)) {
-      const name = cleanFileName(f.name);
+      let name = cleanFileName(f.name);
+      const isPy = /\.py$/i.test(name);
+      if (isPy) name = name.slice(0, -3) + '.py';
       const isSnd = SND_EXT.test(name), isRes = /\.pyxres$/i.test(name);
-      if (!isSnd && !isRes && !IMG_EXT.test(name)) { errs.push(f.name + ' : format non accepté (images : png, jpg, gif, webp, bmp — sons : mp3, wav, ogg — Pyxel : pyxres)'); continue; }
-      const max = isSnd ? AUDIO_MAX : (isRes ? PYXRES_MAX : FILE_MAX);
-      const what = isSnd ? 'un son' : (isRes ? 'un fichier .pyxres' : 'une image');
+      if (!isSnd && !isRes && !isPy && !IMG_EXT.test(name)) {
+        errs.push(f.name + ' : format non accepté (images : png, jpg, gif, webp, bmp — sons : mp3, wav, ogg — Pyxel : pyxres — modules : py)');
+        continue;
+      }
+      if (isPy && !pythonModuleName(name)) {
+        errs.push(f.name + ' : le nom du module doit être un identifiant Python valide (lettres, chiffres et _, sans chiffre au début ni mot réservé)');
+        continue;
+      }
+      if (isPy && ['_ptk', 'pgshim', 'sndshim'].includes(pythonModuleName(name))) {
+        errs.push(f.name + ' : ce nom est réservé au fonctionnement de la plateforme');
+        continue;
+      }
+      const max = isSnd ? AUDIO_MAX : (isRes ? PYXRES_MAX : (isPy ? PY_MAX : FILE_MAX));
+      const what = isSnd ? 'un son' : (isRes ? 'un fichier .pyxres' : (isPy ? 'un module Python' : 'une image'));
       if (f.size > max) { errs.push(f.name + ' : trop lourd (' + fmtSize(f.size) + ', maximum ' + fmtSize(max) + ' pour ' + what + ')'); continue; }
       const buf = new Uint8Array(await f.arrayBuffer());
-      const type = isSnd ? sniffAudio(buf) : (isRes ? sniffZip(buf) : sniffImage(buf));
+      if (isPy) {
+        try { new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+        catch (e) { errs.push(f.name + ' : le module doit être encodé en UTF-8'); continue; }
+      }
+      const type = isSnd ? sniffAudio(buf) : (isRes ? sniffZip(buf) : (isPy ? 'text/x-python' : sniffImage(buf)));
       if (!type) { errs.push(f.name + " : ce n'est pas " + (isSnd ? 'un son valide' : (isRes ? 'un fichier .pyxres valide' : 'une image valide'))); continue; }
       let total = 0, count = 0;
       yFiles.forEach((v, k) => { if (k !== name) { total += v.size; count++; } });
@@ -686,16 +783,17 @@ for i in range(36):
     names.forEach(name => {
       const f = yFiles.get(name);
       total += f.size;
-      const isAudio = /^audio\//.test(f.type);
+      const isAudio = /^audio\//.test(f.type), isPython = f.type === 'text/x-python';
       const row = document.createElement('div');
       row.className = 'frow';
       const nm = document.createElement('span');
       nm.className = 'fname';
       nm.textContent = name;
-      nm.title = 'Cliquer pour copier "' + name + '" — ajouté par ' + (f.by || '?');
+      nm.title = 'Cliquer pour copier "' + (isPython ? 'import ' + pythonModuleName(name) : name) + '" — ajouté par ' + (f.by || '?');
       nm.addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(name); filesMessage('« ' + name + ' » copié.', 'ok'); }
-        catch (e) { window.prompt('Copiez le nom du fichier :', name); }
+        const text = isPython ? 'import ' + pythonModuleName(name) : name;
+        try { await navigator.clipboard.writeText(text); filesMessage('« ' + text + ' » copié.', 'ok'); }
+        catch (e) { window.prompt('Copiez le texte :', text); }
       });
       const meta = document.createElement('span');
       meta.className = 'fmeta';
@@ -723,6 +821,11 @@ for i in range(36):
         ic.className = 'fico';
         ic.textContent = '🎮';
         row.appendChild(ic);
+      } else if (isPython) {
+        const ic = document.createElement('span');
+        ic.className = 'fico';
+        ic.textContent = '🐍';
+        row.appendChild(ic);
       } else {
         const img = document.createElement('img');
         const url = URL.createObjectURL(new Blob([f.data], { type: f.type }));
@@ -733,16 +836,17 @@ for i in range(36):
       const del = document.createElement('button');
       del.textContent = '✕';
       del.title = 'Supprimer pour tous les participants';
+      del.disabled = !canEditRoom();
       del.addEventListener('click', () => {
-        if (roomLocked) return;
+        if (!canEditRoom()) return;
         if (window.confirm('Supprimer « ' + name + ' » pour tous les participants ?')) yFiles.delete(name);
       });
       row.appendChild(nm); row.appendChild(meta); row.appendChild(del);
       filesList.appendChild(row);
     });
     filesInfo.textContent = names.length
-      ? names.length + ' / ' + COUNT_MAX + ' fichiers · ' + fmtSize(total) + ' / ' + fmtSize(TOTAL_MAX) + ' (max ' + fmtSize(FILE_MAX) + ' par image, ' + fmtSize(AUDIO_MAX) + ' par son)'
-      : 'Aucun fichier. Maximum ' + fmtSize(FILE_MAX) + ' par image, ' + fmtSize(AUDIO_MAX) + ' par son, ' + fmtSize(TOTAL_MAX) + ' par salle.';
+      ? names.length + ' / ' + COUNT_MAX + ' fichiers · ' + fmtSize(total) + ' / ' + fmtSize(TOTAL_MAX) + ' (max ' + fmtSize(FILE_MAX) + ' par image, ' + fmtSize(AUDIO_MAX) + ' par son, ' + fmtSize(PY_MAX) + ' par module)'
+      : 'Aucun fichier. Maximum ' + fmtSize(FILE_MAX) + ' par image, ' + fmtSize(AUDIO_MAX) + ' par son, ' + fmtSize(PY_MAX) + ' par module, ' + fmtSize(TOTAL_MAX) + ' par salle.';
     setBtn(filesBtn, '📁', names.length ? 'Fichiers (' + names.length + ')' : 'Fichiers');
   }
 
@@ -752,6 +856,13 @@ for i in range(36):
     yFiles.forEach((v, k) => out.push({ name: k, data: v.data }));
     const lg = legacyPyxres();
     if (lg && !out.some(f => f.name === lg.name)) out.push({ name: lg.name, data: lg.data });
+    return out;
+  };
+  window.ptkPythonModules = () => {
+    const out = [];
+    yFiles.forEach((v, k) => {
+      if (v.type === 'text/x-python') out.push({ name: k, data: v.data });
+    });
     return out;
   };
 
@@ -829,26 +940,139 @@ for i in range(36):
 
   // ---------- Salles verrouillées (démonstrations) ----------
   let roomLocked = false;
+  let isRoomOwner = false;
+  let roomOwnerName = '';
+  let ownerLocked = false;
+  let cursorLabels = true;
+  let roomStateLoaded = false;
   const lockBtn = $('lockBtn'), lockPanel = $('lockPanel'), lockToggle = $('lockToggle');
   const lockMsg = $('lockMsg'), lockState = $('lockState'), lockBadge = $('lockBadge'), demoList = $('demoList');
+  const ownerControls = $('ownerControls'), ownerState = $('ownerState');
+  const ownerEditToggle = $('ownerEditToggle'), ownerLabelsToggle = $('ownerLabelsToggle');
+  let savingOwnerSettings = false;
+
+  function canEditRoom() {
+    return !roomLocked && (!ownerLocked || isRoomOwner);
+  }
 
   function lockMessage(text, cls) { lockMsg.textContent = text || ''; lockMsg.className = cls || ''; }
 
   function applyLock() {
-    roomLocked = yMeta.get('locked') === true;       // drapeau posé par le serveur : un client ne peut pas le modifier
-    editor.setOption('readOnly', roomLocked);
+    roomLocked = yMeta.get('locked') === true;
+    applyRoomSettings();
+  }
+
+  function applyRoomSettings() {
+    const effectiveLock = !canEditRoom();
+    editor.setOption('readOnly', effectiveLock);
+    modeSel.disabled = effectiveLock;
     document.body.classList.toggle('room-locked', roomLocked);
-    lockBadge.style.display = roomLocked ? 'inline-block' : 'none';
-    setBtn(lockBtn, roomLocked ? '🔒' : '🏠', room);
+    document.body.classList.toggle('owner-locked', ownerLocked);
+    document.body.classList.toggle('hide-cursor-labels', !cursorLabels);
+    lockBadge.style.display = roomLocked || (ownerLocked && !isRoomOwner) ? 'inline-block' : 'none';
+    setBtn(lockBtn, roomLocked || ownerLocked ? '🔒' : '🏠', room);
     lockState.textContent = roomLocked
       ? 'Cette salle est verrouillée : le code et les fichiers ne peuvent plus être modifiés. Vous pouvez lancer le programme, ou le copier dans une nouvelle salle pour le modifier.'
-      : 'Cette salle est modifiable. Un administrateur peut la verrouiller pour en faire une démonstration.';
+      : ownerLocked
+        ? 'Le créateur a bloqué les modifications : seul le créateur peut modifier le code et les fichiers.'
+        : 'Cette salle est modifiable. Un administrateur peut la verrouiller pour en faire une démonstration.';
     lockToggle.textContent = roomLocked ? '🔓 Déverrouiller (mot de passe)' : '🔒 Verrouiller (mot de passe)';
-    const fp = document.getElementById('filesPick');
-    if (fp) fp.disabled = roomLocked;
+    const filesPick = $('filesPick');
+    if (filesPick) filesPick.disabled = effectiveLock;
+    filesList.querySelectorAll('button[title="Supprimer pour tous les participants"]')
+      .forEach(button => { button.disabled = effectiveLock; });
+    ownerControls.classList.toggle('visible', isRoomOwner);
+    ownerState.textContent = isRoomOwner
+      ? 'Vous êtes le créateur ; ses droits sont conservés dans ce navigateur.'
+      : roomOwnerName ? 'Salle créée par ' + roomOwnerName + '.' : '';
+    ownerEditToggle.textContent = ownerLocked
+      ? '🔓 Autoriser les modifications des participants'
+      : '🔒 Bloquer les modifications des participants';
+    ownerLabelsToggle.textContent = cursorLabels
+      ? 'Masquer les noms près des curseurs'
+      : 'Afficher les noms près des curseurs';
+    ownerEditToggle.disabled = savingOwnerSettings;
+    ownerLabelsToggle.disabled = savingOwnerSettings;
   }
+
   yMeta.observe(applyLock);
   applyLock();
+
+  function applyRoomMeta() {
+    const owner = yMeta.get('ownerName');
+    if (typeof owner === 'string') roomOwnerName = owner;
+    if (typeof yMeta.get('ownerLocked') === 'boolean') ownerLocked = yMeta.get('ownerLocked');
+    if (typeof yMeta.get('cursorLabels') === 'boolean') cursorLabels = yMeta.get('cursorLabels');
+    applyRoomSettings();
+    if (roomStateLoaded) resolveConflicts();
+  }
+  yMeta.observe(applyRoomMeta);
+
+  async function loadRoomState() {
+    try {
+      const query = new URLSearchParams({ room: room });
+      const headers = ownerKey ? { Authorization: 'Bearer ' + ownerKey } : {};
+      const response = await fetch(basePath + 'ws/_room/state?' + query, { cache: 'no-store', headers: headers });
+      if (response.status === 404) {
+        roomStateLoaded = true;
+        resolveConflicts();
+        return;
+      }
+      const state = await response.json();
+      if (!response.ok) throw new Error(state.error || 'Erreur ' + response.status);
+      isRoomOwner = state.isOwner === true;
+      roomOwnerName = state.ownerName;
+      ownerLocked = state.ownerLocked === true;
+      cursorLabels = state.cursorLabels !== false;
+      roomStateLoaded = true;
+      if (isRoomOwner && roomOwnerName && me.name !== roomOwnerName) {
+        me.name = roomOwnerName;
+        nameInput.value = me.name;
+        store.set('pt_name', me.name);
+        publishUser();
+      }
+      applyRoomSettings();
+      resolveConflicts();
+    } catch (e) {
+      roomStateLoaded = true;
+      resolveConflicts();
+      lockMessage('État de la salle indisponible : ' + e.message, 'err');
+    }
+  }
+
+  async function saveOwnerSettings(changes) {
+    if (!isRoomOwner || !ownerKey || savingOwnerSettings) return false;
+    savingOwnerSettings = true;
+    applyRoomSettings();
+    try {
+      const response = await fetch(basePath + 'ws/_room/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room: room,
+          ownerKey: ownerKey,
+          ownerName: changes.ownerName === undefined ? roomOwnerName : changes.ownerName,
+          ownerLocked: changes.ownerLocked === undefined ? ownerLocked : changes.ownerLocked,
+          cursorLabels: changes.cursorLabels === undefined ? cursorLabels : changes.cursorLabels
+        })
+      });
+      const state = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(state.error || 'Erreur ' + response.status);
+      roomOwnerName = state.ownerName;
+      ownerLocked = state.ownerLocked;
+      cursorLabels = state.cursorLabels;
+      applyRoomSettings();
+      return true;
+    } catch (e) {
+      lockMessage('Enregistrement impossible : ' + e.message, 'err');
+      return false;
+    } finally {
+      savingOwnerSettings = false;
+      applyRoomSettings();
+    }
+  }
+
+  ownerEditToggle.addEventListener('click', () => saveOwnerSettings({ ownerLocked: !ownerLocked }));
+  ownerLabelsToggle.addEventListener('click', () => saveOwnerSettings({ cursorLabels: !cursorLabels }));
 
   async function adminLock(lock) {
     let pw = null;
@@ -902,12 +1126,14 @@ for i in range(36):
   lockPanel.addEventListener('click', e => e.stopPropagation());
   document.addEventListener('click', () => lockPanel.classList.remove('open'));
   lockToggle.addEventListener('click', () => adminLock(!roomLocked));
-  $('lockFork').addEventListener('click', () => {
+  $('lockFork').addEventListener('click', async () => {
     try { sessionStorage.setItem('pt_fork', JSON.stringify({ code: editor.getValue(), mode: modeSel.value })); } catch (e) {}
     const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
     let c = '';
     crypto.getRandomValues(new Uint8Array(6)).forEach(b => { c += chars[b % chars.length]; });
-    location.search = '?room=salle-' + c;
+    if (!await createRoom('salle-' + c)) {
+      try { sessionStorage.removeItem('pt_fork'); } catch (e) {}
+    }
   });
 
   // ---------- Barre compacte, pseudos uniques, couleurs par auteur ----------
@@ -964,6 +1190,7 @@ for i in range(36):
   function othersWithName(name) {
     const key = nameKey(name);
     let n = 0;
+    if (!isRoomOwner && key === nameKey(roomOwnerName)) return 1;
     awareness.getStates().forEach((st, id) => {
       if (id !== awareness.clientID && st.user && nameKey(st.user.name) === key) n++;
     });
@@ -971,7 +1198,9 @@ for i in range(36):
   }
   function freeName(base) {
     let i = 2, n = base;
-    while (othersWithName(n) > 0) { const suf = '_' + (i++); n = base.slice(0, 20 - suf.length) + suf; }
+    while (othersWithName(n) > 0 || (!isRoomOwner && nameKey(n) === nameKey(roomOwnerName))) {
+      const suf = '_' + (i++); n = base.slice(0, 20 - suf.length) + suf;
+    }
     return n;
   }
   function arrivedBefore(st, id) {
@@ -980,13 +1209,14 @@ for i in range(36):
   }
   function resolveConflicts() {
     const mine = nameKey(me.name), myColor = safeColor(me.color).toLowerCase();
-    let nameClash = false, colorClash = false;
+    let nameClash = !isRoomOwner && nameKey(me.name) === nameKey(roomOwnerName);
+    let colorClash = false;
     const used = new Set();
     awareness.getStates().forEach((st, id) => {
       if (id === awareness.clientID || !st.user) return;
       used.add(safeColor(st.user.color).toLowerCase());
       if (!arrivedBefore(st, id)) return;
-      if (nameKey(st.user.name) === mine) nameClash = true;
+      if (!isRoomOwner && nameKey(st.user.name) === mine) nameClash = true;
       if (safeColor(st.user.color).toLowerCase() === myColor) colorClash = true;
     });
     let changed = false;
@@ -994,6 +1224,7 @@ for i in range(36):
       const old = me.name;
       me.name = freeName(old);
       nameInput.value = me.name;
+      store.set('pt_name', me.name);
       changed = true;
       uiToast('Le pseudo « ' + old + ' » est déjà utilisé : vous êtes « ' + me.name + ' ».');
     }
@@ -1118,15 +1349,19 @@ for i in range(36):
       for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
       return btoa(bin);
     };
+    const modules = window.ptkPythonModules ? window.ptkPythonModules() : [];
     let resourceBootstrap = '';
-    if (resources && resources.length) {
+    if ((resources && resources.length) || modules.length) {
       const py = ['import base64 as __pt_b, os as __pt_o', '__pt_o.makedirs("assets", exist_ok=True)',
                   'def __pt_w(names, b):', '    d = __pt_b.b64decode(b)', '    for n in names:', '        with open(n, "wb") as f:',
                   '            f.write(d)'];
-      resources.forEach((r, i) => {
+      (resources || []).forEach((r, i) => {
         const names = [r.name, 'assets/' + r.name];
         if (i === resources.length - 1) names.push('room.pyxres', 'assets/room.pyxres');
         py.push('__pt_w(' + JSON.stringify(names) + ', ' + JSON.stringify(b64(r.data)) + ')');
+      });
+      modules.forEach(m => {
+        py.push('__pt_w(' + JSON.stringify([m.name]) + ', ' + JSON.stringify(b64(m.data)) + ')');
       });
       py.push('del __pt_w, __pt_b, __pt_o');
       resourceBootstrap = 'exec(' + JSON.stringify(py.join('\n')) + ')  # PYXRES_ROOM_PATCH_V2\n';
@@ -1172,6 +1407,10 @@ var __t = setInterval(function () {
   }
 
   function turtleDoc(code) {
+    const modules = (window.ptkPythonModules ? window.ptkPythonModules() : []).map(m => ({
+      name: m.name,
+      source: new TextDecoder().decode(m.data)
+    }));
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
 html,body{margin:0;height:100%;background:#cfcfcf;overflow:hidden}
@@ -1182,10 +1421,17 @@ html,body{margin:0;height:100%;background:#cfcfcf;overflow:hidden}
 <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"><\/script>
 <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"><\/script>
 <script>
+var __ptModules = JSON.parse(${jsStr(JSON.stringify(modules))});
 function builtinRead(x) {
-  if (Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined)
-    throw "File not found: '" + x + "'";
-  return Sk.builtinFiles["files"][x];
+  if (Sk.builtinFiles !== undefined && Sk.builtinFiles["files"][x] !== undefined)
+    return Sk.builtinFiles["files"][x];
+  var match = /(?:^|\\/)([A-Za-z_][A-Za-z0-9_]*\\.py)$/.exec(x.replace(/\\\\/g, '/'));
+  if (match) {
+    for (var i = 0; i < __ptModules.length; i++) {
+      if (__ptModules[i].name === match[1]) return __ptModules[i].source;
+    }
+  }
+  throw "File not found: '" + x + "'";
 }
 Sk.pre = "out";
 Sk.configure({
@@ -1254,6 +1500,10 @@ var py;
       '    else:',
       '        exec(compile(tree, "<console>", "exec"))'
     ].join('\\n'));
+    var modules = (parent.ptkPythonModules ? parent.ptkPythonModules() : []);
+    for (var i = 0; i < modules.length; i++) {
+      py.FS.writeFile('/home/pyodide/' + modules[i].name, modules[i].data);
+    }
     var script = ${jsStr(code)};
     await py.loadPackagesFromImports(script);
     await py.runPythonAsync(script);
@@ -1431,7 +1681,7 @@ cv.addEventListener('mousedown', function () { cv.focus(); window.focus(); });
   }
   $('runBtn').addEventListener('click', run);
   $('runAllBtn').addEventListener('click', () => {
-    if (!roomLocked) {
+    if (canEditRoom()) {
       lastRunSignal = Date.now();
       yMeta.set('runSignal', lastRunSignal);
     }

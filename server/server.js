@@ -2,6 +2,7 @@
 //  - salles en mémoire (comme avant) ;
 //  - GET  /_rooms        : liste des salles (nom, connectés, verrouillée ou non) ;
 //  - POST /_admin/lock   : verrouiller / déverrouiller une salle (mot de passe administrateur) ;
+//  - POST /_room/create et /_room/settings : droits du créateur, persistés avec un secret local ;
 //  - une salle verrouillée est en LECTURE SEULE : le serveur refuse toute modification venant des clients,
 //    et elle est sauvegardée sur disque (elle survit au redémarrage du serveur).
 const http = require('http');
@@ -18,9 +19,11 @@ const HOST = process.env.HOST || '127.0.0.1';
 const DATA_DIR = process.env.PT_DATA_DIR || path.join(__dirname, 'data');
 const ADMIN_PW = process.env.PT_ADMIN_PASSWORD || '';
 const ROOM_STRICT = /^[A-Za-z0-9_-]{1,64}$/;      // noms de salles qu'on peut verrouiller (sert aussi de nom de fichier)
+const ROOM_CREATE = /^salle-[a-z0-9]{6}$/;
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const LOCKS_FILE = path.join(DATA_DIR, 'locked-rooms.json');
+const ROOM_SETTINGS_FILE = path.join(DATA_DIR, 'room-settings.json');
 const stateFile = name => path.join(DATA_DIR, name + '.ydoc');
 
 function atomicWrite(file, data) {
@@ -33,6 +36,42 @@ let locked = new Set();
 try { locked = new Set(JSON.parse(fs.readFileSync(LOCKS_FILE, 'utf8')).filter(n => ROOM_STRICT.test(n))); } catch (e) { /* aucun verrou enregistré */ }
 const saveLocks = () => atomicWrite(LOCKS_FILE, JSON.stringify(Array.from(locked)));
 
+let roomSettings = {};
+try {
+  const saved = JSON.parse(fs.readFileSync(ROOM_SETTINGS_FILE, 'utf8'));
+  if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+    roomSettings = Object.fromEntries(Object.entries(saved).filter(([name, value]) =>
+      ROOM_STRICT.test(name) && value && typeof value.ownerName === 'string' &&
+      /^[a-f0-9]{64}$/.test(value.ownerKeyHash) &&
+      typeof value.ownerLocked === 'boolean' && typeof value.cursorLabels === 'boolean'));
+  }
+} catch (e) {
+  if (e.code !== 'ENOENT') console.error('Lecture impossible des réglages de salles :', e.message);
+}
+const saveRoomSettings = () => atomicWrite(ROOM_SETTINGS_FILE, JSON.stringify(roomSettings));
+
+function isRoomOwner(name, key) {
+  const settings = roomSettings[name];
+  if (!settings || typeof key !== 'string' || !/^[a-f0-9]{64}$/.test(key)) return false;
+  const supplied = crypto.createHash('sha256').update(key).digest();
+  const stored = Buffer.from(settings.ownerKeyHash, 'hex');
+  return crypto.timingSafeEqual(supplied, stored);
+}
+
+function syncRoomSettings(name, doc) {
+  const settings = roomSettings[name];
+  if (!settings) return;
+  const meta = doc.getMap('meta');
+  if (meta.get('ownerName') === settings.ownerName &&
+      meta.get('ownerLocked') === settings.ownerLocked &&
+      meta.get('cursorLabels') === settings.cursorLabels) return;
+  doc.transact(() => {
+    meta.set('ownerName', settings.ownerName);
+    meta.set('ownerLocked', settings.ownerLocked);
+    meta.set('cursorLabels', settings.cursorLabels);
+  }, 'server');
+}
+
 // Ouvre (ou crée) une salle ; une salle verrouillée est rechargée depuis le disque à sa première ouverture
 function openRoom(name) {
   const known = docs.has(name);
@@ -41,6 +80,7 @@ function openRoom(name) {
     try { Y.applyUpdate(doc, fs.readFileSync(stateFile(name)), 'server'); }
     catch (e) { console.error('Lecture impossible de la salle verrouillée "' + name + '" :', e.message); }
   }
+  syncRoomSettings(name, doc);
   return doc;
 }
 
@@ -84,6 +124,84 @@ function readBody(req, max, cb) {
   req.on('end', () => cb(body));
 }
 
+function handleCreateRoom(req, res) {
+  readBody(req, 4096, body => {
+    let j;
+    try { j = JSON.parse(body); } catch (e) { return json(res, 400, { error: 'Requête invalide' }); }
+    const name = String(j.room || '');
+    const ownerName = String(j.ownerName || '').trim().slice(0, 20);
+    const ownerKey = String(j.ownerKey || '');
+    if (!ROOM_CREATE.test(name)) return json(res, 400, { error: 'Nom de salle invalide' });
+    if (!ownerName || !/^[a-f0-9]{64}$/.test(ownerKey)) return json(res, 400, { error: 'Identité du créateur invalide' });
+    if (roomSettings[name] || docs.has(name) || locked.has(name)) return json(res, 409, { error: 'Cette salle existe déjà' });
+    roomSettings[name] = {
+      ownerName,
+      ownerKeyHash: crypto.createHash('sha256').update(ownerKey).digest('hex'),
+      ownerLocked: false,
+      cursorLabels: true
+    };
+    try {
+      saveRoomSettings();
+      openRoom(name);
+    } catch (e) {
+      delete roomSettings[name];
+      try { saveRoomSettings(); } catch (saveError) { console.error(saveError); }
+      console.error(e);
+      return json(res, 500, { error: 'Création de la salle impossible' });
+    }
+    json(res, 201, { ok: true });
+  });
+}
+
+function handleRoomState(req, res) {
+  const url = new URL(req.url, 'http://localhost');
+  const name = url.searchParams.get('room') || '';
+  if (!ROOM_STRICT.test(name)) return json(res, 400, { error: 'Nom de salle invalide' });
+  const settings = roomSettings[name];
+  if (!settings) return json(res, 404, { error: 'Salle inconnue' });
+  const authorization = req.headers.authorization || '';
+  const ownerKey = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  json(res, 200, {
+    ownerName: settings.ownerName,
+    ownerLocked: settings.ownerLocked,
+    cursorLabels: settings.cursorLabels,
+    isOwner: isRoomOwner(name, ownerKey)
+  });
+}
+
+function handleRoomSettings(req, res) {
+  readBody(req, 4096, body => {
+    let j;
+    try { j = JSON.parse(body); } catch (e) { return json(res, 400, { error: 'Requête invalide' }); }
+    const name = String(j.room || '');
+    if (!ROOM_STRICT.test(name)) return json(res, 400, { error: 'Nom de salle invalide' });
+    const settings = roomSettings[name];
+    if (!settings || !isRoomOwner(name, j.ownerKey)) return json(res, 403, { error: 'Droits du créateur requis' });
+    const ownerName = String(j.ownerName || '').trim().slice(0, 20);
+    if (!ownerName || typeof j.ownerLocked !== 'boolean' || typeof j.cursorLabels !== 'boolean') {
+      return json(res, 400, { error: 'Réglages invalides' });
+    }
+    const previous = { ...settings };
+    settings.ownerName = ownerName;
+    settings.ownerLocked = j.ownerLocked;
+    settings.cursorLabels = j.cursorLabels;
+    try {
+      saveRoomSettings();
+      syncRoomSettings(name, openRoom(name));
+    } catch (e) {
+      roomSettings[name] = previous;
+      console.error(e);
+      return json(res, 500, { error: 'Enregistrement des réglages impossible' });
+    }
+    json(res, 200, {
+      ownerName: settings.ownerName,
+      ownerLocked: settings.ownerLocked,
+      cursorLabels: settings.cursorLabels,
+      isOwner: true
+    });
+  });
+}
+
 function passwordState(pw) {
   if (!ADMIN_PW) return 'disabled';
   const a = crypto.createHash('sha256').update(String(pw || '')).digest();
@@ -112,7 +230,11 @@ function handleLock(req, res) {
 }
 
 const server = http.createServer((req, res) => {
-  const url = req.url.split('?')[0];
+  const requestUrl = new URL(req.url, 'http://localhost');
+  const url = requestUrl.pathname;
+  if (url === '/_room/create' && req.method === 'POST') return handleCreateRoom(req, res);
+  if (url === '/_room/state' && req.method === 'GET') return handleRoomState(req, res);
+  if (url === '/_room/settings' && req.method === 'POST') return handleRoomSettings(req, res);
   if (url === '/_rooms' && req.method === 'GET') {
     const names = new Set(docs.keys());
     locked.forEach(n => names.add(n));
@@ -129,16 +251,19 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocket.Server({ noServer: true });
 server.on('upgrade', (req, socket, head) => {
-  let name = (req.url || '/').slice(1).split('?')[0];
+  const requestUrl = new URL(req.url || '/', 'http://localhost');
+  let name = requestUrl.pathname.slice(1);
   try { name = decodeURIComponent(name); } catch (e) { /* nom brut */ }
+  const owner = isRoomOwner(name, requestUrl.searchParams.get('ownerKey'));
   wss.handleUpgrade(req, socket, head, ws => {
     openRoom(name);
     setupWSConnection(ws, req, { docName: name });
-    // Filtre : dans une salle verrouillée, les modifications des clients sont ignorées (la présence reste autorisée)
+    // Les salles verrouillées et les modifications des non-créateurs sont refusées côté serveur.
     const listeners = ws.listeners('message');
     ws.removeAllListeners('message');
     ws.on('message', (data, isBinary) => {
       if (locked.has(name) && isDocWrite(data)) return;
+      if (roomSettings[name] && roomSettings[name].ownerLocked && !owner && isDocWrite(data)) return;
       listeners.forEach(l => l.call(ws, data, isBinary));
     });
   });
